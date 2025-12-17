@@ -18,11 +18,7 @@ jobs:
 
       - run: npm run build
 
-      # prune dev deps for smaller extension size
-      - name: Package extension for Claude desktop app
-        run: |
-          npm prune --production
-          npm run pack
+      - run: npm run pack
 
   version-check:
     runs-on: ubuntu-latest

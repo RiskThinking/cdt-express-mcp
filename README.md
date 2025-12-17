@@ -4,7 +4,7 @@ Interact with climate metrics via Riskthinking.AI's CDT Express API in supported
 
 This project contains:
 - The core MCP server that can be used to interact with Riskthinking.AI's CDT Express API.
-- Distributable MCPB extension for the Claude desktop app.
+- Distributable MCPB extension for the Claude desktop app in [releases](https://github.com/riskthinking-ai/cdt-express-mcp/releases).
 
 ## MCPB Extension Installation
 
@@ -18,3 +18,30 @@ This project contains:
 8. The extension will be installed and you can use it in the app.
 9. When using for the first time, you may see the following prompt requesting for permission to use the extension provided tools, click on "Allow once" or "Always allow".
   a. Alternatively, you can manually configure in "Settings" -> "Extensions", and configure the Tool permissions for this extension.
+10. To update a new version, simply follow the same steps to "Install Extension", and click on "Update".
+
+## Roadmap
+
+CDT Express Climate API:
+- [x] Since v0.1.0: [Climate exposure metrics](https://api.riskthinking.ai/v4/climate/metrics/exposure)
+- [ ] [Climate impact metrics](https://api.riskthinking.ai/v4/climate/metrics/impact)
+- [ ] [Probability-adjusted impact](https://api.riskthinking.ai/v4/climate/metrics/probability_adjusted_impact)
+- [ ] [Climate exposure distribution](https://api.riskthinking.ai/v4/climate/distribution/exposure)
+- [ ] [Climate impact distribution](https://api.riskthinking.ai/v4/climate/distribution/impact)
+
+Other CDT Express APIs:
+- [ ] [Physical Assets API](https://api.docs.riskthinking.ai/#tag/Assets)
+- [ ] [Companies API](https://api.docs.riskthinking.ai/#tag/Companies)
+- [ ] [Markets API](https://api.docs.riskthinking.ai/#tag/Markets)
+
+Integration:
+- [ ] Support Streamable HTTP transport for the MCP server for remote MCP server useage.
+
+## Development
+
+- [Optional] Use [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions.
+  - `nvm use` to use the version specified in `.nvmrc`.
+- Install dependencies: `npm i`
+- Build the project (transpiles the TypeScript code to JavaScript): `npm run build`
+- Package the extension: `npm run pack:dev`. You should find the `cdt-express.mcpb` file in the root directory.
+  - This command is different from `npm run pack` in that it installs back the development dependencies after packaging.
