@@ -1,6 +1,6 @@
 {
   "name": "cdt-express-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
   "main": "index.js",
   "scripts": {

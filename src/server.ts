@@ -64,7 +64,7 @@ const METRICS_SCHEMA = z
 const DISTRIBUTION_SCHEMA = z.object({
   latitude: LAT_SCHEMA,
   longitude: LON_SCHEMA,
-  risk_factors: z
+  risk_factor: z
     .enum(RISK_FACTORS)
     .describe("Single risk factor (e.g. 'fwi')"),
   pathway: z.enum(PATHWAYS).describe("Climate pathway (e.g. 'ssp245')"),
