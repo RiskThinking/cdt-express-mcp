@@ -1,0 +1,35 @@
+{
+  "name": "cdt-express-mcp",
+  "version": "0.1.0",
+  "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "pack": "npx -y @anthropic-ai/mcpb pack . cdt-express.mcpb",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "CDT Express",
+    "Riskthinking.AI",
+    "climate",
+    "metrics"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/riskthinking-ai/cdt-express-mcp"
+  },
+  "author": {
+    "name": "Riskthinking.AI",
+    "url": "https://riskthinking.ai"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3"
+  }
+}

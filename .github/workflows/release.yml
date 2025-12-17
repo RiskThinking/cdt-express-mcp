@@ -1,0 +1,36 @@
+name: Release distributable MCPB
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-mcpb:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # for upload artifacts
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # prune dev deps for smaller extension size
+      - name: Package extension for Claude desktop app
+        run: |
+          npm prune --production
+          npm run pack
+
+      # upload MCPB extension to the GitHub release
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: cdt-express.mcpb
+          generate_release_notes: true

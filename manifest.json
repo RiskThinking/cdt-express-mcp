@@ -1,0 +1,31 @@
+{
+  "manifest_version": "0.3",
+  "name": "cdt-express.mcpb",
+  "display_name": "CDT Express by Riskthinking.AI",
+  "version": "0.1.0",
+  "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
+  "author": {
+    "name": "Riskthinking.AI",
+    "url": "https://riskthinking.ai"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/build/index.js"],
+      "env": {
+        "CDT_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "CDT Express API Key",
+      "description": "Obtain at https://velo.riskthinking.ai/cdt-express",
+      "required": true,
+      "sensitive": true
+    }
+  }
+}
