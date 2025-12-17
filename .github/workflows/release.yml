@@ -14,6 +14,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Verify version consistency
+        run: |
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          MST_VER="$(jq -r '.version' manifest.json)"
+          PKG_VER="$(jq -r '.version' package.json)"
+
+          if [ "$TAG_VER" != "$MST_VER" ]; then
+            echo "❌ Version mismatch between tag ($TAG_VER) and manifest ($MST_VER)"
+            exit 1
+          elif [ "$TAG_VER" != "$PKG_VER" ]; then
+            echo "❌ Version mismatch between tag ($TAG_VER) and package ($PKG_VER)"
+            exit 1
+          else
+            echo "✅ Version ($TAG_VER) is consistent across tag, manifest, and package"
+          fi
+
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc

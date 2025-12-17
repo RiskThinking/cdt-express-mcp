@@ -23,3 +23,20 @@ jobs:
         run: |
           npm prune --production
           npm run pack
+
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify version consistency
+        run: |
+          MSF_VER="$(jq -r '.version' manifest.json)"
+          PKG_VER="$(jq -r '.version' package.json)"
+
+          if [ "$MSF_VER" != "$PKG_VER" ]; then
+            echo "❌ Version mismatch between manifest ($MSF_VER) and package ($PKG_VER)"
+            exit 1
+          else
+            echo "✅ Version ($MSF_VER) is consistent across manifest and package"
+          fi
