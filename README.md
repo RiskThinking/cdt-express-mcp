@@ -23,7 +23,7 @@ This project contains:
 ## Roadmap
 
 CDT Express Climate API:
-- [x] Since v0.1.0: [Climate exposure metrics](https://api.riskthinking.ai/v4/climate/metrics/exposure)
+- [x] Since `v0.1.0`: [Climate exposure metrics](https://api.riskthinking.ai/v4/climate/metrics/exposure)
 - [ ] [Climate impact metrics](https://api.riskthinking.ai/v4/climate/metrics/impact)
 - [ ] [Probability-adjusted impact](https://api.riskthinking.ai/v4/climate/metrics/probability_adjusted_impact)
 - [ ] [Climate exposure distribution](https://api.riskthinking.ai/v4/climate/distribution/exposure)
@@ -35,13 +35,20 @@ Other CDT Express APIs:
 - [ ] [Markets API](https://api.docs.riskthinking.ai/#tag/Markets)
 
 Integration:
-- [ ] Support Streamable HTTP transport for the MCP server for remote MCP server useage.
+- [x] Since `v0.1.0`: Support Stdio transport for local MCP server connectivity (e.g. extension for Claude desktop app and IDEs such as Cursor.)
+- [ ] Support Streamable HTTP transport for remote MCP server connectivity to support web AI chat experiences.
 
 ## Development
 
 - [Optional] Use [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions.
   - `nvm use` to use the version specified in `.nvmrc`.
 - Install dependencies: `npm i`
-- Build the project (transpiles the TypeScript code to JavaScript): `npm run build`
+- Build the project (transpiles the TypeScript files to portable JavaScript): `npm run build`
 - Package the extension: `npm run pack:dev`. You should find the `cdt-express.mcpb` file in the root directory.
   - This command is different from `npm run pack` in that it installs back the development dependencies after packaging.
+
+To bump the version of the project:
+- Update the version in package.json by running `npm --no-git-tag-version version <major|minor|patch>`.
+- Update the version in manifest.json to match the version in package.json.
+
+In CI/CD workflows, the version is checked to ensure consistency across the manifest, package, and git tag.
