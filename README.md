@@ -24,10 +24,10 @@ This project contains:
 
 CDT Express Climate API:
 - [x] Since `v0.1.0`: [Climate exposure metrics](https://api.riskthinking.ai/v4/climate/metrics/exposure)
-- [ ] [Climate impact metrics](https://api.riskthinking.ai/v4/climate/metrics/impact)
-- [ ] [Probability-adjusted impact](https://api.riskthinking.ai/v4/climate/metrics/probability_adjusted_impact)
-- [ ] [Climate exposure distribution](https://api.riskthinking.ai/v4/climate/distribution/exposure)
-- [ ] [Climate impact distribution](https://api.riskthinking.ai/v4/climate/distribution/impact)
+- [x] Since `v0.2.0`: [Climate impact metrics](https://api.riskthinking.ai/v4/climate/metrics/impact)
+- [x] Since `v0.2.0`: [Probability-adjusted impact](https://api.riskthinking.ai/v4/climate/metrics/probability_adjusted_impact)
+- [x] Since `v0.2.0`: [Climate exposure distribution](https://api.riskthinking.ai/v4/climate/distribution/exposure)
+- [x] Since `v0.2.0`: [Climate impact distribution](https://api.riskthinking.ai/v4/climate/distribution/impact)
 
 Other CDT Express APIs:
 - [ ] [Physical Assets API](https://api.docs.riskthinking.ai/#tag/Assets)

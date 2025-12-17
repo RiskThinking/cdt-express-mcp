@@ -1,32 +1,164 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { HORIZONS, PATHWAYS, RISK_FACTORS, STATISTICS } from "./constants.js";
 
-const RISK_FACTORS: readonly string[] = [
-  "cyclone", "fwi", "hot_days", "rx1day", "frost_days",
-  "daily_freezethaw_cycles", "wind_max_daily_max", "cflood", "rflood",
-  "spei", "dc", "dmc", "ffmc", "isi", "bui", "rx5day",
-  "wind_max_daily_mean", "cooling_degree_days", "tg_max", "tg_mean",
-  "tg_min", "tx_max", "tx_mean", "tx_min", "tn_max", "tn_mean",
-  "tn_min", "sdii", "liquidprcptot", "solidprcptot", "prcptot",
-  "pet", "water_budget", "dtrmax", "dtrvar", "etr", "calm_days",
-  "corn_heat_units", "wbgt", "windchill", "heat_index",
-  "heat_wave_frequency", "heat_wave_total_length", "heat_wave_max_length",
-  "heat_wave_index", "hot_spell_frequency", "hot_spell_max_length",
-  "maximum_consecutive_frost_days", "cold_spell_days",
-  "cold_spell_frequency", "maximum_consecutive_wet_days",
-  "maximum_consecutive_dry_days", "at", "summer_days",
-  "tropical_nights", "inundation", "humidex", "heating_degree_days",
-  "growing_degree_days", "ice_days", "dry_days", "wet_days", "dtr"
-];
-const PATHWAYS: readonly string[] = [
-  "SV", "historic",
-  "ssp126", "ssp245", "ssp370", "ssp585", "ssp434", "ssp119", "ssp460",
-  "<2 degrees", "2-3 degrees", "3-4 degrees", ">4 degrees"
-];
-const HORIZONS: readonly string[] = [
-  "2010", "2025", "2030", "2035", "2040", "2045", "2050", "2055", "2060",
-  "2065", "2070", "2075", "2080", "2085", "2090", "2095", "2100",
-];
+type ToolInput = Record<
+  string,
+  string | number | (string | number)[] | undefined | null
+>;
+
+const LAT_SCHEMA = z.number().min(-90).max(90).describe("Latitude");
+const LON_SCHEMA = z.number().min(-180).max(180).describe("Longitude");
+const METRICS_SCHEMA = z
+  .object({
+    latitude: LAT_SCHEMA,
+    longitude: LON_SCHEMA,
+    risk_factors: z
+      .array(z.enum(RISK_FACTORS))
+      .optional()
+      .describe("Risk factors (e.g. 'fwi,hot_days')"),
+    pathway: z
+      .array(z.enum(PATHWAYS))
+      .optional()
+      .describe(
+        "Climate pathway (e.g. 'ssp245'), REQUIRED if 'horizon' is not provided.",
+      ),
+    horizon: z
+      .array(z.enum(HORIZONS))
+      .optional()
+      .describe(
+        "Horizon years (e.g. '2050'), REQUIRED if 'pathway' is not provided.",
+      ),
+    percentiles: z
+      .array(z.number().min(1).max(100))
+      .optional()
+      .describe(
+        "Comma-separated list of percentiles. Defaults to: 50, 75, 90, 95, 99",
+      ),
+    statistics: z
+      .array(z.enum(STATISTICS))
+      .optional()
+      .describe(
+        "Comma-separated list of statistics. Defaults to: minimum, maximum, mean",
+      ),
+    return_periods: z
+      .array(z.number().min(1).max(1000))
+      .optional()
+      .describe(
+        "Comma-separated list of return periods (1-1000 years). Defaults to: 2, 5, 10, 20, 100",
+      ),
+  })
+  .superRefine((data, ctx) => {
+    // handle the custom logic for either horizon or pathway being required
+    if (
+      (!data.pathway || data.pathway.length === 0) &&
+      (!data.horizon || data.horizon.length === 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "At least one of 'pathway' or 'horizon' must be provided.",
+        path: ["pathway", "horizon"],
+      });
+    }
+  });
+const DISTRIBUTION_SCHEMA = z.object({
+  latitude: LAT_SCHEMA,
+  longitude: LON_SCHEMA,
+  risk_factors: z
+    .enum(RISK_FACTORS)
+    .describe("Single risk factor (e.g. 'fwi')"),
+  pathway: z.enum(PATHWAYS).describe("Climate pathway (e.g. 'ssp245')"),
+  horizon: z.enum(HORIZONS).describe("Horizon year (e.g. '2050')"),
+});
+
+const validateInput = <T>(schema: z.ZodType<T>, input: unknown): T => {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    throw new Error(`Validation Failed: ${result.error.message}`);
+  }
+  return result.data;
+};
+
+const buildParams = (inputs: ToolInput) => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(inputs)) {
+    if (value === undefined || value === null) continue;
+
+    if (Array.isArray(value)) {
+      params.append(key, value.join(","));
+    } else {
+      params.append(key, String(value));
+    }
+  }
+  return params;
+};
+
+const _fetch = async (
+  endpoint: string,
+  params: URLSearchParams,
+  apiKey: string,
+) => {
+  try {
+    const response = await fetch(`${endpoint}?${params}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `API Error ${response.status}: ${errorText}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    };
+  } catch (error: unknown) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Network Error: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+};
+
+const getCallback = <T extends z.ZodTypeAny>(
+  schema: T,
+  endpoint: string,
+  apiKey: string,
+) => {
+  return async (input: unknown) => {
+    try {
+      const validData = validateInput(schema, input);
+      const params = buildParams(validData as ToolInput);
+      return _fetch(endpoint, params, apiKey);
+    } catch (error: unknown) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: error instanceof Error ? error.message : String(error),
+          },
+        ],
+        isError: true,
+      };
+    }
+  };
+};
 
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
@@ -34,71 +166,80 @@ export const getServer = (apiKey: string) => {
     version: "v4",
   });
 
-  server.registerTool("get_climate_exposure", {
-    title: "get_climate_exposure",
-    description: "Get climate exposure metrics for a location.",
-    inputSchema: z.object({
-      latitude: z.number().min(-90).max(90).describe("Latitude"),
-      longitude: z.number().min(-180).max(180).describe("Longitude"),
-      risk_factors: z.array(z.enum(RISK_FACTORS)).optional().describe("Risk factors (e.g. 'fwi,hot_days')"),
-      pathway: z.array(z.enum(PATHWAYS)).optional().describe("Climate pathway (e.g. 'ssp245'), REQUIRED if 'horizon' is not provided."),
-      horizon: z.array(z.enum(HORIZONS)).optional().describe("Horizon years (e.g. '2050'), REQUIRED if 'pathway' is not provided."),
-    }),
-  }, async ({ latitude, longitude, risk_factors, pathway, horizon }) => {
-    if (!pathway && !horizon) {
-      return {
-        content: [{ type: "text", text: "Error: either 'pathway' or 'horizon' is required." }],
-        isError: true,
-      };
-    }
+  server.registerTool(
+    "get_climate_metrics_exposure",
+    {
+      title: "Get exposure metrics for a location",
+      description:
+        "Returns exposure statistics, percentiles, and return periods.",
+      inputSchema: METRICS_SCHEMA,
+    },
+    getCallback(
+      METRICS_SCHEMA,
+      "https://api.riskthinking.ai/v4/climate/metrics/exposure",
+      apiKey,
+    ),
+  );
 
-    const params = new URLSearchParams({
-      latitude: latitude.toString(),
-      longitude: longitude.toString(),
-    });
-    if (risk_factors) {
-      params.append("risk_factor", risk_factors.join(","));
-    }
-    if (pathway) {
-      params.append("pathway", pathway.join(","));
-    }
-    if (horizon) {
-      params.append("horizon", horizon.join(","));
-    }
+  server.registerTool(
+    "get_climate_metrics_impact",
+    {
+      title: "Get impact metrics for a location",
+      description:
+        "Returns impact statistics based on asset damage calculations.",
+      inputSchema: METRICS_SCHEMA,
+    },
+    getCallback(
+      METRICS_SCHEMA,
+      "https://api.riskthinking.ai/v4/climate/metrics/impact",
+      apiKey,
+    ),
+  );
 
-    try {
-      const response = await fetch(
-        `https://api.riskthinking.ai/v4/climate/metrics/exposure?${params.toString()}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Accept": "application/json",
-          },
-        }
-      );
+  server.registerTool(
+    "get_climate_metrics_probability_adjusted_impact",
+    {
+      title: "Get probability-adjusted impact metrics",
+      description:
+        "Returns impact metrics with probability-adjusted return periods.",
+      inputSchema: METRICS_SCHEMA,
+    },
+    getCallback(
+      METRICS_SCHEMA,
+      "https://api.riskthinking.ai/v4/climate/metrics/probability_adjusted_impact",
+      apiKey,
+    ),
+  );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          content: [{
-            type: "text",
-            text: `API Error ${response.status}: ${errorText}`
-          }],
-          isError: true,
-        };
-      }
+  server.registerTool(
+    "get_climate_distribution_exposure",
+    {
+      title: "Get exposure distribution for a location",
+      description:
+        "Returns the full exposure distribution (quantile values) for a single risk factor.",
+      inputSchema: DISTRIBUTION_SCHEMA,
+    },
+    getCallback(
+      DISTRIBUTION_SCHEMA,
+      "https://api.riskthinking.ai/v4/climate/distribution/exposure",
+      apiKey,
+    ),
+  );
 
-      const data = await response.json();
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Fetch failed: ${error.message}` }],
-        isError: true,
-      };
-    }
-  });
+  server.registerTool(
+    "get_climate_distribution_impact",
+    {
+      title: "Get impact distribution for a location",
+      description:
+        "Returns the full impact distribution (quantile values) for a single risk factor.",
+      inputSchema: DISTRIBUTION_SCHEMA,
+    },
+    getCallback(
+      DISTRIBUTION_SCHEMA,
+      "https://api.riskthinking.ai/v4/climate/distribution/impact",
+      apiKey,
+    ),
+  );
 
   return server;
-}
+};
