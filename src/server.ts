@@ -34,73 +34,71 @@ export const getServer = (apiKey: string) => {
     version: "v4",
   });
 
-  // TODO: update to use .registerTool
-  server.tool(
-    "get_climate_exposure",
-    "Get climate exposure metrics for a location.",
-    {
+  server.registerTool("get_climate_exposure", {
+    title: "get_climate_exposure",
+    description: "Get climate exposure metrics for a location.",
+    inputSchema: z.object({
       latitude: z.number().min(-90).max(90).describe("Latitude"),
       longitude: z.number().min(-180).max(180).describe("Longitude"),
       risk_factors: z.array(z.enum(RISK_FACTORS)).optional().describe("Risk factors (e.g. 'fwi,hot_days')"),
       pathway: z.array(z.enum(PATHWAYS)).optional().describe("Climate pathway (e.g. 'ssp245'), REQUIRED if 'horizon' is not provided."),
       horizon: z.array(z.enum(HORIZONS)).optional().describe("Horizon years (e.g. '2050'), REQUIRED if 'pathway' is not provided."),
-    },
-    async ({ latitude, longitude, risk_factors, pathway, horizon }) => {
-      if (!pathway && !horizon) {
-        return {
-          content: [{ type: "text", text: "Error: either 'pathway' or 'horizon' is required." }],
-          isError: true,
-        };
-      }
-
-      const params = new URLSearchParams({
-        latitude: latitude.toString(),
-        longitude: longitude.toString(),
-      });
-      if (risk_factors) {
-        params.append("risk_factor", risk_factors.join(","));
-      }
-      if (pathway) {
-        params.append("pathway", pathway.join(","));
-      }
-      if (horizon) {
-        params.append("horizon", horizon.join(","));
-      }
-
-      try {
-        const response = await fetch(
-          `https://api.riskthinking.ai/v4/climate/metrics/exposure?${params.toString()}`,
-          {
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Accept": "application/json",
-            },
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          return {
-            content: [{
-              type: "text",
-              text: `API Error ${response.status}: ${errorText}`
-            }],
-            isError: true,
-          };
-        }
-
-        const data = await response.json();
-        return {
-          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-        };
-      } catch (error: any) {
-        return {
-          content: [{ type: "text", text: `Fetch failed: ${error.message}` }],
-          isError: true,
-        };
-      }
+    }),
+  }, async ({ latitude, longitude, risk_factors, pathway, horizon }) => {
+    if (!pathway && !horizon) {
+      return {
+        content: [{ type: "text", text: "Error: either 'pathway' or 'horizon' is required." }],
+        isError: true,
+      };
     }
-  );
+
+    const params = new URLSearchParams({
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+    });
+    if (risk_factors) {
+      params.append("risk_factor", risk_factors.join(","));
+    }
+    if (pathway) {
+      params.append("pathway", pathway.join(","));
+    }
+    if (horizon) {
+      params.append("horizon", horizon.join(","));
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.riskthinking.ai/v4/climate/metrics/exposure?${params.toString()}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Accept": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          content: [{
+            type: "text",
+            text: `API Error ${response.status}: ${errorText}`
+          }],
+          isError: true,
+        };
+      }
+
+      const data = await response.json();
+      return {
+        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Fetch failed: ${error.message}` }],
+        isError: true,
+      };
+    }
+  });
 
   return server;
 }
