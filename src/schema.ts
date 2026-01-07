@@ -43,7 +43,7 @@ const CLIMATE_PARAMS_SCHEMA = z.object({
     .enum(HORIZONS)
     .optional()
     .describe("Horizon year (e.g. 2030, 2050)"),
-  metrics: z
+  metric: z
     .array(z.enum(METRICS))
     .default([METRICS[0]])
     .optional()
