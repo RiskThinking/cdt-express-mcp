@@ -16,8 +16,9 @@ const validateInput = <T>(schema: z.ZodType<T>, input: unknown): T => {
 const buildParams = (inputs: ToolInput) => {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(inputs)) {
-    if (value === undefined || value === null) continue;
-
+    if (value === undefined || value === null) {
+      continue;
+    }
     if (Array.isArray(value)) {
       params.append(key, value.join(","));
     } else {
@@ -54,8 +55,38 @@ const _fetch = async (
     }
 
     const data = await response.json();
+    let finalContent = JSON.stringify(data, null, 2);
+
+    if (
+      data.pagination &&
+      typeof data.pagination.last_page === "boolean" &&
+      data.pagination.cursor
+    ) {
+      if (!data.pagination.last_page) {
+        // not on the last page, suggest to call the tool again with the next cursor
+        const nextCursor = data.pagination.cursor;
+        const count = data.pagination.count;
+        finalContent +=
+          `\n\n` +
+          `--- SYSTEM NOTIFICATION: PARTIAL RESULTS ---\n` +
+          `You have retrieved ${count} items, but 'last_page' is FALSE.\n` +
+          `There are more results available.\n` +
+          `\n` +
+          `REQUIRED ACTION:\n` +
+          `Call this tool again immediately with the argument:\n` +
+          `cursor: "${nextCursor}"\n` +
+          `\n` +
+          `Do not summarize or stop until you receive a response where 'last_page' is true.`;
+      } else {
+        // otherwise, indicate that all results have been retrieved
+        finalContent +=
+          `\n\n` +
+          `--- SYSTEM NOTIFICATION: PAGINATION COMPLETE ---\n` +
+          `'last_page' is TRUE. You have retrieved all available results.`;
+      }
+    }
     return {
-      content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+      content: [{ type: "text" as const, text: finalContent }],
     };
   } catch (error: unknown) {
     return {
@@ -83,7 +114,9 @@ export const getCallback = <T extends z.ZodTypeAny>(
       const queryParams: ToolInput = {};
 
       for (const [key, value] of Object.entries(validData)) {
-        if (value === undefined || value === null) continue;
+        if (value === undefined || value === null) {
+          continue;
+        }
 
         const placeholder = `{${key}}`;
 

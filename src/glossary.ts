@@ -5,7 +5,7 @@ The following metrics are used to quantify physical climate risk damage to asset
 
 1. Downside Likelihood (dcr_score)
    - Product Label: "Downside Likelihood"
-   - Definition: A standardized score representing the likelihood of significant asset damage relative to replacement cost.
+   - Definition: A standardized score representing the likelihood of the future outcome being worse compared to the historical baseline.
    - Usage: Best for comparing relative risk levels across different asset types or portfolios.
 
 2. Expected Impact (expected_impact)
