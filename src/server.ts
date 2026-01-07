@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { METRICS } from "./constants.js";
 import { METRIC_DEFINITIONS } from "./glossary.js";
 import {
   ASSET_ID_SCHEMA,
@@ -34,7 +35,7 @@ export const getServer = (apiKey: string) => {
     version: "0.3.0",
   });
 
-  // Glossary resource
+  // Glossary resource (passive) and tool (active)
   server.registerResource(
     "metrics_glossary",
     "file:///glossary/metrics.txt",
@@ -48,6 +49,21 @@ export const getServer = (apiKey: string) => {
           uri: uri.href,
           text: METRIC_DEFINITIONS,
           mimeType: "text/plain",
+        },
+      ],
+    }),
+  );
+  server.registerTool(
+    "get_metrics_definition",
+    {
+      title: "Get Climate Metric Definitions",
+      description: `Returns the official CDT Express definitions for metrics: ${METRICS.join(", ")}.`,
+    },
+    async () => ({
+      content: [
+        {
+          type: "text",
+          text: METRIC_DEFINITIONS,
         },
       ],
     }),
