@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { HORIZONS, PATHWAYS, RISK_FACTORS, STATISTICS } from "./constants.js";
+import {
+  HORIZONS,
+  METRICS,
+  PATHWAYS,
+  RISK_FACTORS,
+  STATISTICS,
+} from "./constants.js";
 
 export const PAGINATION_SCHEMA = z.object({
   cursor: z.string().optional().describe("Pagination cursor"),
@@ -30,19 +36,20 @@ const ENTITY_FILTER_SCHEMA = z.object({
 const CLIMATE_PARAMS_SCHEMA = z.object({
   risk: z.enum(["physical", "transition"]).default("physical").optional(),
   pathway: z
-    .string()
+    .enum(PATHWAYS)
     .optional()
     .describe("Climate pathway (e.g. 'ssp245', '<2 degrees')"),
   horizon: z
-    .number()
-    .min(2025)
-    .max(2100)
+    .enum(HORIZONS)
     .optional()
     .describe("Horizon year (e.g. 2030, 2050)"),
   metrics: z
-    .string()
+    .array(z.enum(METRICS))
+    .default([METRICS[0]])
     .optional()
-    .describe("Comma-separated metrics (e.g. 'dcr_score,expected_impact'). Available values are dcr_score, expected_impact, cvar_50, cvar_95, cvar_99, var_50, var_95, var_99. For definitions of these metrics, refer to resource: file:///glossary/metrics"),
+    .describe(
+      "Metrics to include in the response. For definitions, refer to resource: file:///glossary/metrics",
+    ),
 });
 
 const createSortSchema = (allowedFields: [string, ...string[]]) =>
@@ -82,28 +89,26 @@ export const INDEX_ID_SCHEMA = z.object({
 });
 
 // Climate Metrics API
-export const METRICS_SCHEMA = GEO_POINT_SCHEMA.extend(
-  {
-    risk_factors: z
-      .array(z.enum(RISK_FACTORS))
-      .optional()
-      .describe("Risk factors (e.g. 'fwi')"),
-    pathway: z.array(z.enum(PATHWAYS)).optional(),
-    horizon: z.array(z.enum(HORIZONS)).optional(),
-    percentiles: z
-      .array(z.number().min(1).max(100))
-      .optional()
-      .describe("Defaults: 50, 75, 90, 95, 99"),
-    statistics: z
-      .array(z.enum(STATISTICS))
-      .optional()
-      .describe("Defaults: min, max, mean"),
-    return_periods: z
-      .array(z.number().min(1).max(1000))
-      .optional()
-      .describe("Defaults: 2, 5, 10, 20, 100"),
-  },
-).superRefine((data, ctx) => {
+export const METRICS_SCHEMA = GEO_POINT_SCHEMA.extend({
+  risk_factors: z
+    .array(z.enum(RISK_FACTORS))
+    .optional()
+    .describe("Risk factors (e.g. 'fwi')"),
+  pathway: z.array(z.enum(PATHWAYS)).optional(),
+  horizon: z.array(z.enum(HORIZONS)).optional(),
+  percentiles: z
+    .array(z.number().min(1).max(100))
+    .optional()
+    .describe("Defaults: 50, 75, 90, 95, 99"),
+  statistics: z
+    .array(z.enum(STATISTICS))
+    .optional()
+    .describe("Defaults: min, max, mean"),
+  return_periods: z
+    .array(z.number().min(1).max(1000))
+    .optional()
+    .describe("Defaults: 2, 5, 10, 20, 100"),
+}).superRefine((data, ctx) => {
   if (!data.pathway?.length && !data.horizon?.length) {
     ctx.addIssue({
       code: "custom",
@@ -221,7 +226,7 @@ export const INDEX_COMPANIES_SCORES_SCHEMA = INDEX_ANALYTICS_BASE.extend(
       "asset_count",
       "sector",
       "company_name",
-      "cvar_99",
+      ...METRICS,
     ]).shape,
   )
   .extend({
@@ -233,13 +238,8 @@ export const INDEX_ASSETS_SCORES_SCHEMA = INDEX_ANALYTICS_BASE.extend(
   PAGINATION_SCHEMA.shape,
 )
   .extend(
-    createSortSchema([
-      "id",
-      "asset_type",
-      "country",
-      "state",
-      "cvar_99",
-    ]).shape,
+    createSortSchema(["id", "asset_type", "country", "state", ...METRICS])
+      .shape,
   )
   .extend({
     min_risk: z.number().optional(),

@@ -104,3 +104,13 @@ export const STATISTICS: readonly string[] = [
   "stddev",
   "cvar_95",
 ];
+export const METRICS = [
+  "dcr_score",
+  "expected_impact",
+  "cvar_50",
+  "cvar_95",
+  "cvar_99",
+  "var_50",
+  "var_95",
+  "var_99",
+];

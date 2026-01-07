@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { METRIC_DEFINITIONS } from "./glossary.js";
 import {
   ASSET_ID_SCHEMA,
   ASSET_SCORES_SCHEMA,
@@ -26,7 +27,6 @@ import {
   SEARCH_MARKET_INDEXES_SCHEMA,
 } from "./schema.js";
 import { getCallback } from "./utils.js";
-import { METRIC_DEFINITIONS } from "./glossary.js";
 
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
@@ -50,8 +50,8 @@ export const getServer = (apiKey: string) => {
           mimeType: "text/plain",
         },
       ],
-    })
-  )
+    }),
+  );
 
   // Climate Metrics API
   server.registerTool(
