@@ -37,13 +37,7 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
-
-      # prune dev deps for smaller extension size
-      - name: Package extension for Claude desktop app
-        run: |
-          npm prune --production
-          npm run pack
+      - run: npm run pack
 
       # upload MCPB extension to the GitHub release
       - uses: softprops/action-gh-release@v2

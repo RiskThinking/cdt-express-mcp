@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "cdt-express.mcpb",
   "display_name": "CDT Express by Riskthinking.AI",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
   "author": {
     "name": "Riskthinking.AI",

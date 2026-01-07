@@ -16,8 +16,6 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
-
       - run: npm run pack
 
   version-check:

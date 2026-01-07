@@ -1,171 +1,59 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { HORIZONS, PATHWAYS, RISK_FACTORS, STATISTICS } from "./constants.js";
-
-type ToolInput = Record<
-  string,
-  string | number | (string | number)[] | undefined | null
->;
-
-const LAT_SCHEMA = z.number().min(-90).max(90).describe("Latitude");
-const LON_SCHEMA = z.number().min(-180).max(180).describe("Longitude");
-const METRICS_SCHEMA = z
-  .object({
-    latitude: LAT_SCHEMA,
-    longitude: LON_SCHEMA,
-    risk_factors: z
-      .array(z.enum(RISK_FACTORS))
-      .optional()
-      .describe("Risk factors (e.g. 'fwi,hot_days')"),
-    pathway: z
-      .array(z.enum(PATHWAYS))
-      .optional()
-      .describe(
-        "Climate pathway (e.g. 'ssp245'), REQUIRED if 'horizon' is not provided.",
-      ),
-    horizon: z
-      .array(z.enum(HORIZONS))
-      .optional()
-      .describe(
-        "Horizon years (e.g. '2050'), REQUIRED if 'pathway' is not provided.",
-      ),
-    percentiles: z
-      .array(z.number().min(1).max(100))
-      .optional()
-      .describe(
-        "Comma-separated list of percentiles. Defaults to: 50, 75, 90, 95, 99",
-      ),
-    statistics: z
-      .array(z.enum(STATISTICS))
-      .optional()
-      .describe(
-        "Comma-separated list of statistics. Defaults to: minimum, maximum, mean",
-      ),
-    return_periods: z
-      .array(z.number().min(1).max(1000))
-      .optional()
-      .describe(
-        "Comma-separated list of return periods (1-1000 years). Defaults to: 2, 5, 10, 20, 100",
-      ),
-  })
-  .superRefine((data, ctx) => {
-    // handle the custom logic for either horizon or pathway being required
-    if (
-      (!data.pathway || data.pathway.length === 0) &&
-      (!data.horizon || data.horizon.length === 0)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "At least one of 'pathway' or 'horizon' must be provided.",
-        path: ["pathway", "horizon"],
-      });
-    }
-  });
-const DISTRIBUTION_SCHEMA = z.object({
-  latitude: LAT_SCHEMA,
-  longitude: LON_SCHEMA,
-  risk_factor: z
-    .enum(RISK_FACTORS)
-    .describe("Single risk factor (e.g. 'fwi')"),
-  pathway: z.enum(PATHWAYS).describe("Climate pathway (e.g. 'ssp245')"),
-  horizon: z.enum(HORIZONS).describe("Horizon year (e.g. '2050')"),
-});
-
-const validateInput = <T>(schema: z.ZodType<T>, input: unknown): T => {
-  const result = schema.safeParse(input);
-  if (!result.success) {
-    throw new Error(`Validation Failed: ${result.error.message}`);
-  }
-  return result.data;
-};
-
-const buildParams = (inputs: ToolInput) => {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(inputs)) {
-    if (value === undefined || value === null) continue;
-
-    if (Array.isArray(value)) {
-      params.append(key, value.join(","));
-    } else {
-      params.append(key, String(value));
-    }
-  }
-  return params;
-};
-
-const _fetch = async (
-  endpoint: string,
-  params: URLSearchParams,
-  apiKey: string,
-) => {
-  try {
-    const response = await fetch(`${endpoint}?${params}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `API Error ${response.status}: ${errorText}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    const data = await response.json();
-    return {
-      content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
-    };
-  } catch (error: unknown) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Network Error: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-};
-
-const getCallback = <T extends z.ZodTypeAny>(
-  schema: T,
-  endpoint: string,
-  apiKey: string,
-) => {
-  return async (input: unknown) => {
-    try {
-      const validData = validateInput(schema, input);
-      const params = buildParams(validData as ToolInput);
-      return _fetch(endpoint, params, apiKey);
-    } catch (error: unknown) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: error instanceof Error ? error.message : String(error),
-          },
-        ],
-        isError: true,
-      };
-    }
-  };
-};
+import {
+  ASSET_ID_SCHEMA,
+  ASSET_SCORES_SCHEMA,
+  COMPANY_ASSETS_SCHEMA,
+  COMPANY_CLUSTERS_SCHEMA,
+  COMPANY_ID_SCHEMA,
+  COMPANY_SCORES_SCHEMA,
+  DISTRIBUTION_SCHEMA,
+  GROUP_ID_SCHEMA,
+  INDEX_ASSETS_SCHEMA,
+  INDEX_ASSETS_SCORES_SCHEMA,
+  INDEX_CLUSTERS_SCHEMA,
+  INDEX_COMPANIES_SCHEMA,
+  INDEX_COMPANIES_SCORES_SCHEMA,
+  INDEX_ID_SCHEMA,
+  INDEX_SCORES_SCHEMA,
+  LIST_ASSETS_SCHEMA,
+  LIST_COMPANIES_SCHEMA,
+  LIST_GROUP_CONSTITUENTS_SCHEMA,
+  METRICS_SCHEMA,
+  PAGINATION_SCHEMA,
+  SEARCH_ASSETS_SCHEMA,
+  SEARCH_COMPANIES_SCHEMA,
+  SEARCH_MARKET_GROUPS_SCHEMA,
+  SEARCH_MARKET_INDEXES_SCHEMA,
+} from "./schema.js";
+import { getCallback } from "./utils.js";
+import { METRIC_DEFINITIONS } from "./glossary.js";
 
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
     name: "CDT Express MCP Server",
-    version: "v4",
+    version: "0.3.0",
   });
 
+  // Glossary resource
+  server.registerResource(
+    "metrics_glossary",
+    "file:///glossary/metrics.txt",
+    {
+      title: "Climate Risk Metrics Glossary",
+      description: "Definitions of climate risk metrics used by CDT Express.",
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          text: METRIC_DEFINITIONS,
+          mimeType: "text/plain",
+        },
+      ],
+    })
+  )
+
+  // Climate Metrics API
   server.registerTool(
     "get_climate_metrics_exposure",
     {
@@ -180,7 +68,6 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
-
   server.registerTool(
     "get_climate_metrics_impact",
     {
@@ -195,7 +82,6 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
-
   server.registerTool(
     "get_climate_metrics_probability_adjusted_impact",
     {
@@ -210,7 +96,6 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
-
   server.registerTool(
     "get_climate_distribution_exposure",
     {
@@ -225,7 +110,6 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
-
   server.registerTool(
     "get_climate_distribution_impact",
     {
@@ -237,6 +121,336 @@ export const getServer = (apiKey: string) => {
     getCallback(
       DISTRIBUTION_SCHEMA,
       "https://api.riskthinking.ai/v4/climate/distribution/impact",
+      apiKey,
+    ),
+  );
+
+  // Physical Assets API
+  server.registerTool(
+    "list_assets",
+    {
+      title: "List physical assets",
+      description:
+        "Paginate through physical asset data with optional filters for country and asset type.",
+      inputSchema: LIST_ASSETS_SCHEMA,
+    },
+    getCallback(
+      LIST_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/assets",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_asset",
+    {
+      title: "Get asset details",
+      description: "Retrieve details for a specific physical asset by ID.",
+      inputSchema: ASSET_ID_SCHEMA,
+    },
+    getCallback(
+      ASSET_ID_SCHEMA,
+      "https://api.riskthinking.ai/v3/assets/{asset_id}",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "search_assets",
+    {
+      title: "Search assets",
+      description:
+        "Search for assets by name/address within a specific scope (public, organization, or company).",
+      inputSchema: SEARCH_ASSETS_SCHEMA,
+    },
+    getCallback(
+      SEARCH_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/assets/search",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_asset_climate_scores",
+    {
+      title: "Get asset climate risk scores",
+      description:
+        "Retrieve physical risk analytics (scores) for a specific asset.",
+      inputSchema: ASSET_SCORES_SCHEMA,
+    },
+    getCallback(
+      ASSET_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/assets/{asset_id}/climate/scores",
+      apiKey,
+    ),
+  );
+
+  // Companies API
+  server.registerTool(
+    "list_companies",
+    {
+      title: "List companies",
+      description:
+        "Paginate through all public or organization-specific companies.",
+      inputSchema: LIST_COMPANIES_SCHEMA,
+    },
+    getCallback(
+      LIST_COMPANIES_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "search_companies",
+    {
+      title: "Search companies",
+      description: "Search for companies by name, ISIN, ticker, or sector.",
+      inputSchema: SEARCH_COMPANIES_SCHEMA,
+    },
+    getCallback(
+      SEARCH_COMPANIES_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/search",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_company",
+    {
+      title: "Get company details",
+      description: "Retrieve details for a specific company by ID.",
+      inputSchema: COMPANY_ID_SCHEMA,
+    },
+    getCallback(
+      COMPANY_ID_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/{company_id}",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_company_climate_scores",
+    {
+      title: "Get company climate scores",
+      description: "Get aggregated physical risk analytics for a company.",
+      inputSchema: COMPANY_SCORES_SCHEMA,
+    },
+    getCallback(
+      COMPANY_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/{company_id}/climate/scores",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_company_assets",
+    {
+      title: "Get company assets",
+      description:
+        "Paginate through physical assets owned by a specific company.",
+      inputSchema: COMPANY_ASSETS_SCHEMA,
+    },
+    getCallback(
+      COMPANY_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/{company_id}/assets",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_company_subsidiaries",
+    {
+      title: "Get company subsidiaries",
+      description: "Retrieve list of subsidiaries for a company.",
+      inputSchema: COMPANY_ID_SCHEMA,
+    },
+    getCallback(
+      COMPANY_ID_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/{company_id}/subsidiaries",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_company_geo_clusters",
+    {
+      title: "Get company geo clusters",
+      description:
+        "Get clustered asset locations for geospatial mapping at a specific zoom level.",
+      inputSchema: COMPANY_CLUSTERS_SCHEMA,
+    },
+    getCallback(
+      COMPANY_CLUSTERS_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/{company_id}/geo/clusters",
+      apiKey,
+    ),
+  );
+
+  // Markets/Indices API
+  server.registerTool(
+    "list_market_groups",
+    {
+      title: "List market groups",
+      description: "Paginate through market index groups.",
+      inputSchema: PAGINATION_SCHEMA,
+    },
+    getCallback(
+      PAGINATION_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/groups",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_market_group",
+    {
+      title: "Get market group",
+      description: "Get details of a specific market index group.",
+      inputSchema: GROUP_ID_SCHEMA,
+    },
+    getCallback(
+      GROUP_ID_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/groups/{group_id}",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "search_market_groups",
+    {
+      title: "Search market groups",
+      description: "Search for market index groups by name.",
+      inputSchema: SEARCH_MARKET_GROUPS_SCHEMA,
+    },
+    getCallback(
+      SEARCH_MARKET_GROUPS_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/groups/search",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "list_market_group_constituents",
+    {
+      title: "List market group constituents",
+      description:
+        "Get the list of market indexes that belong to a specific group.",
+      inputSchema: LIST_GROUP_CONSTITUENTS_SCHEMA,
+    },
+    getCallback(
+      LIST_GROUP_CONSTITUENTS_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/groups/{group_id}/constituents",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "list_market_indexes",
+    {
+      title: "List market indexes",
+      description: "Paginate through all market indexes.",
+      inputSchema: PAGINATION_SCHEMA,
+    },
+    getCallback(
+      PAGINATION_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_market_index",
+    {
+      title: "Get market index",
+      description: "Get details of a specific market index.",
+      inputSchema: INDEX_ID_SCHEMA,
+    },
+    getCallback(
+      INDEX_ID_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "search_market_indexes",
+    {
+      title: "Search market indexes",
+      description: "Search for market indexes by name.",
+      inputSchema: SEARCH_MARKET_INDEXES_SCHEMA,
+    },
+    getCallback(
+      SEARCH_MARKET_INDEXES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/search",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "list_market_index_companies",
+    {
+      title: "List market index companies",
+      description: "Paginate through companies within a specific market index.",
+      inputSchema: INDEX_COMPANIES_SCHEMA,
+    },
+    getCallback(
+      INDEX_COMPANIES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/companies",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "list_market_index_assets",
+    {
+      title: "List market index assets",
+      description:
+        "Paginate through physical assets owned by companies in a market index.",
+      inputSchema: INDEX_ASSETS_SCHEMA,
+    },
+    getCallback(
+      INDEX_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/assets",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_market_index_climate_scores",
+    {
+      title: "Get market index climate scores",
+      description:
+        "Get the aggregated physical risk score for the entire market index.",
+      inputSchema: INDEX_SCORES_SCHEMA,
+    },
+    getCallback(
+      INDEX_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/climate/scores",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_market_index_companies_climate_scores",
+    {
+      title: "Get market index companies climate scores",
+      description:
+        "Get physical risk scores for each company within the market index.",
+      inputSchema: INDEX_COMPANIES_SCORES_SCHEMA,
+    },
+    getCallback(
+      INDEX_COMPANIES_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/companies/climate/scores",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_market_index_assets_climate_scores",
+    {
+      title: "Get market index assets climate scores",
+      description:
+        "Get physical risk scores for individual assets within the market index.",
+      inputSchema: INDEX_ASSETS_SCORES_SCHEMA,
+    },
+    getCallback(
+      INDEX_ASSETS_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/assets/climate/scores",
+      apiKey,
+    ),
+  );
+  server.registerTool(
+    "get_market_index_geo_clusters",
+    {
+      title: "Get market index geo clusters",
+      description:
+        "Get clustered asset locations for the market index for geospatial mapping.",
+      inputSchema: INDEX_CLUSTERS_SCHEMA,
+    },
+    getCallback(
+      INDEX_CLUSTERS_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/geo/clusters",
       apiKey,
     ),
   );
