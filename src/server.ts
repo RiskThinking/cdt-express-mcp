@@ -32,7 +32,7 @@ import { getCallback } from "./utils.js";
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
     name: "CDT Express MCP Server",
-    version: "0.3.1",
+    version: "0.4.0",
   });
 
   // Glossary resource (passive) and tool (active)
@@ -53,6 +53,7 @@ export const getServer = (apiKey: string) => {
       ],
     }),
   );
+
   server.registerTool(
     "get_metrics_definition",
     {
@@ -84,6 +85,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_climate_metrics_impact",
     {
@@ -98,6 +100,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_climate_metrics_probability_adjusted_impact",
     {
@@ -112,6 +115,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_climate_distribution_exposure",
     {
@@ -126,6 +130,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_climate_distribution_impact",
     {
@@ -156,6 +161,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_assets",
+    {
+      title: "List all physical assets",
+      description:
+        "List all physical assets exhaustively with optional filters for country and asset type.",
+      inputSchema: LIST_ASSETS_SCHEMA,
+    },
+    getCallback(
+      LIST_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/assets",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_asset",
     {
@@ -169,6 +191,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "search_assets",
     {
@@ -183,6 +206,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_asset_climate_scores",
     {
@@ -213,6 +237,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_companies",
+    {
+      title: "List all companies",
+      description:
+        "List all public or organization-specific companies exhaustively.",
+      inputSchema: LIST_COMPANIES_SCHEMA,
+    },
+    getCallback(
+      LIST_COMPANIES_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "search_companies",
     {
@@ -226,6 +267,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_company",
     {
@@ -239,6 +281,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_company_climate_scores",
     {
@@ -252,6 +295,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_company_assets",
     {
@@ -266,6 +310,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "get_all_company_assets",
+    {
+      title: "Get all company assets",
+      description:
+        "List all physical assets owned by a specific company exhaustively.",
+      inputSchema: COMPANY_ASSETS_SCHEMA,
+    },
+    getCallback(
+      COMPANY_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/companies/{company_id}/assets",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_company_subsidiaries",
     {
@@ -279,6 +340,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_company_geo_clusters",
     {
@@ -308,6 +370,22 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_market_groups",
+    {
+      title: "List all market groups",
+      description: "List all market index groups exhaustively.",
+      inputSchema: PAGINATION_SCHEMA,
+    },
+    getCallback(
+      PAGINATION_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/groups",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_market_group",
     {
@@ -321,6 +399,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "search_market_groups",
     {
@@ -334,6 +413,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "list_market_group_constituents",
     {
@@ -348,6 +428,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_market_group_constituents",
+    {
+      title: "List all market group constituents",
+      description:
+        "List all market indexes that belong to a specific group exhaustively.",
+      inputSchema: LIST_GROUP_CONSTITUENTS_SCHEMA,
+    },
+    getCallback(
+      LIST_GROUP_CONSTITUENTS_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/groups/{group_id}/constituents",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "list_market_indexes",
     {
@@ -361,6 +458,22 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_market_indexes",
+    {
+      title: "List all market indexes",
+      description: "List all market indexes exhaustively.",
+      inputSchema: PAGINATION_SCHEMA,
+    },
+    getCallback(
+      PAGINATION_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_market_index",
     {
@@ -374,6 +487,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "search_market_indexes",
     {
@@ -387,6 +501,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "list_market_index_companies",
     {
@@ -400,6 +515,22 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_market_index_companies",
+    {
+      title: "List all market index companies",
+      description: "List all companies within a specific market index exhaustively.",
+      inputSchema: INDEX_COMPANIES_SCHEMA,
+    },
+    getCallback(
+      INDEX_COMPANIES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/companies",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "list_market_index_assets",
     {
@@ -414,6 +545,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "list_all_market_index_assets",
+    {
+      title: "List all market index assets",
+      description:
+        "List all physical assets owned by companies in a market index exhaustively.",
+      inputSchema: INDEX_ASSETS_SCHEMA,
+    },
+    getCallback(
+      INDEX_ASSETS_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/assets",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_market_index_climate_scores",
     {
@@ -428,6 +576,7 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
   server.registerTool(
     "get_market_index_companies_climate_scores",
     {
@@ -442,6 +591,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "get_all_market_index_companies_climate_scores",
+    {
+      title: "Get all market index companies climate scores",
+      description:
+        "Get all physical risk scores for each company within the market index exhaustively.",
+      inputSchema: INDEX_COMPANIES_SCORES_SCHEMA,
+    },
+    getCallback(
+      INDEX_COMPANIES_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/companies/climate/scores",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_market_index_assets_climate_scores",
     {
@@ -456,6 +622,23 @@ export const getServer = (apiKey: string) => {
       apiKey,
     ),
   );
+
+  server.registerTool(
+    "get_all_market_index_assets_climate_scores",
+    {
+      title: "Get all market index assets climate scores",
+      description:
+        "Get all physical risk scores for individual assets within the market index exhaustively.",
+      inputSchema: INDEX_ASSETS_SCORES_SCHEMA,
+    },
+    getCallback(
+      INDEX_ASSETS_SCORES_SCHEMA,
+      "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/assets/climate/scores",
+      apiKey,
+      true,
+    ),
+  );
+
   server.registerTool(
     "get_market_index_geo_clusters",
     {
