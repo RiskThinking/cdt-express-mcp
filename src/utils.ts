@@ -84,13 +84,13 @@ const _fetch = async (
 
       const data = await response.json();
 
-      if (!options.exhaustive) {
+      if (!options?.exhaustive) {
         return {
           content: [
             {
               type: "text" as const,
               text:
-                options.format === "csv"
+                options?.format === "csv"
                   ? toCSV(data.results)
                   : JSON.stringify(data, null, 2),
             },
