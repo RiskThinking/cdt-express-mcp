@@ -167,14 +167,14 @@ export const getServer = (apiKey: string) => {
     {
       title: "List all physical assets",
       description:
-        "List all physical assets exhaustively with optional filters for country and asset type.",
+        "List all physical assets exhaustively with optional filters for country and asset type. Response is a CSV with header row and value rows.",
       inputSchema: LIST_ASSETS_SCHEMA,
     },
     getCallback(
       LIST_ASSETS_SCHEMA,
       "https://api.riskthinking.ai/v3/assets",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -243,14 +243,14 @@ export const getServer = (apiKey: string) => {
     {
       title: "List all companies",
       description:
-        "List all public or organization-specific companies exhaustively.",
+        "List all public or organization-specific companies exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: LIST_COMPANIES_SCHEMA,
     },
     getCallback(
       LIST_COMPANIES_SCHEMA,
       "https://api.riskthinking.ai/v3/companies",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -316,14 +316,14 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get all company assets",
       description:
-        "List all physical assets owned by a specific company exhaustively.",
+        "List all physical assets owned by a specific company exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: COMPANY_ASSETS_SCHEMA,
     },
     getCallback(
       COMPANY_ASSETS_SCHEMA,
       "https://api.riskthinking.ai/v3/companies/{company_id}/assets",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -375,14 +375,15 @@ export const getServer = (apiKey: string) => {
     "list_all_market_groups",
     {
       title: "List all market groups",
-      description: "List all market index groups exhaustively.",
+      description:
+        "List all market index groups exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: PAGINATION_SCHEMA,
     },
     getCallback(
       PAGINATION_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/groups",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -434,14 +435,14 @@ export const getServer = (apiKey: string) => {
     {
       title: "List all market group constituents",
       description:
-        "List all market indexes that belong to a specific group exhaustively.",
+        "List all market indexes that belong to a specific group exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: LIST_GROUP_CONSTITUENTS_SCHEMA,
     },
     getCallback(
       LIST_GROUP_CONSTITUENTS_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/groups/{group_id}/constituents",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -463,14 +464,15 @@ export const getServer = (apiKey: string) => {
     "list_all_market_indexes",
     {
       title: "List all market indexes",
-      description: "List all market indexes exhaustively.",
+      description:
+        "List all market indexes exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: PAGINATION_SCHEMA,
     },
     getCallback(
       PAGINATION_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/indexes",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -520,14 +522,15 @@ export const getServer = (apiKey: string) => {
     "list_all_market_index_companies",
     {
       title: "List all market index companies",
-      description: "List all companies within a specific market index exhaustively.",
+      description:
+        "List all companies within a specific market index exhaustively.",
       inputSchema: INDEX_COMPANIES_SCHEMA,
     },
     getCallback(
       INDEX_COMPANIES_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/companies",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -558,7 +561,7 @@ export const getServer = (apiKey: string) => {
       INDEX_ASSETS_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/assets",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -597,14 +600,14 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get all market index companies climate scores",
       description:
-        "Get all physical risk scores for each company within the market index exhaustively.",
+        "Get all physical risk scores for each company within the market index exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: INDEX_COMPANIES_SCORES_SCHEMA,
     },
     getCallback(
       INDEX_COMPANIES_SCORES_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/companies/climate/scores",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 
@@ -628,14 +631,14 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get all market index assets climate scores",
       description:
-        "Get all physical risk scores for individual assets within the market index exhaustively.",
+        "Get all physical risk scores for individual assets within the market index exhaustively. Response is a CSV with header row and value rows.",
       inputSchema: INDEX_ASSETS_SCORES_SCHEMA,
     },
     getCallback(
       INDEX_ASSETS_SCORES_SCHEMA,
       "https://api.riskthinking.ai/v3/markets/indexes/{index_id}/assets/climate/scores",
       apiKey,
-      true,
+      { exhaustive: true, format: "csv" },
     ),
   );
 

@@ -28,14 +28,45 @@ const buildParams = (inputs: ToolInput) => {
   return params;
 };
 
+export const toCSV = (results: unknown[]): string => {
+  if (!results.length) {
+    return "";
+  }
+
+  const headers = Object.keys(results[0]);
+
+  const escapeValue = (value: unknown): string => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    const stringValue = String(value);
+
+    if (/[",\n]/.test(stringValue)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  };
+
+  const headerRow = headers.join(",");
+  const rows = results.map((row) =>
+    headers.map((header) => escapeValue(row[header])).join(","),
+  );
+
+  return [headerRow, ...rows].join("\n");
+};
+
 const _fetch = async (
   endpoint: string,
   params: URLSearchParams,
   apiKey: string,
-  exhaustive: boolean,
+  options: {
+    exhaustive?: boolean;
+    format?: "json" | "csv";
+  },
 ) => {
   const _params = new URLSearchParams(params); // clone the params for pagination cursor change
-  let aggResults: any[] = [];
+  let aggResults: unknown[] = [];
 
   try {
     while (true) {
@@ -53,10 +84,16 @@ const _fetch = async (
 
       const data = await response.json();
 
-      if (!exhaustive) {
+      if (!options.exhaustive) {
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify(data, null, 2) },
+            {
+              type: "text" as const,
+              text:
+                options.format === "csv"
+                  ? toCSV(data.results)
+                  : JSON.stringify(data, null, 2),
+            },
           ],
         };
       }
@@ -73,9 +110,7 @@ const _fetch = async (
       }
     }
     return {
-      content: [
-        { type: "text" as const, text: JSON.stringify(aggResults, null, 2) },
-      ],
+      content: [{ type: "text" as const, text: toCSV(aggResults) }],
     };
   } catch (error: unknown) {
     return {
@@ -94,7 +129,10 @@ export const getCallback = <T extends z.ZodTypeAny>(
   schema: T,
   urlTemplate: string,
   apiKey: string,
-  exhaustive: boolean = false,
+  options?: {
+    exhaustive?: boolean;
+    format?: "json" | "csv";
+  },
 ) => {
   return async (input: unknown) => {
     try {
@@ -120,7 +158,7 @@ export const getCallback = <T extends z.ZodTypeAny>(
 
       const params = buildParams(queryParams);
 
-      return _fetch(finalUrl, params, apiKey, exhaustive);
+      return _fetch(finalUrl, params, apiKey, options);
     } catch (error: unknown) {
       return {
         content: [
