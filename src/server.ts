@@ -32,7 +32,7 @@ import { getCallback } from "./utils.js";
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
     name: "CDT Express MCP Server",
-    version: "0.5.0",
+    version: "0.5.1",
   });
 
   // Glossary resource (passive) and tool (active)
@@ -76,7 +76,7 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get exposure metrics for a location",
       description:
-        "Returns exposure statistics, percentiles, and return periods.",
+        "Returns raw meteorological hazard statistics (e.g., days of extreme heat, flood depth). Use this when asked about weather, temperature, or physical phenomena.",
       inputSchema: METRICS_SCHEMA,
     },
     getCallback(
@@ -91,7 +91,7 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get impact metrics for a location",
       description:
-        "Returns impact statistics based on asset damage calculations.",
+        "Returns financial damage estimates. Use this when asked about financial risk, damage costs, or expected financial impact.",
       inputSchema: METRICS_SCHEMA,
     },
     getCallback(
@@ -585,7 +585,7 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get market index companies climate scores",
       description:
-        "Get physical risk scores for each company within the market index.",
+        "Get physical risk scores for companies within an index. Supports pagination and sorting (e.g., sort_by a specific metric like 'expected_impact' descending to instantly find the highest risk entities).",
       inputSchema: INDEX_COMPANIES_SCORES_SCHEMA,
     },
     getCallback(
@@ -616,7 +616,7 @@ export const getServer = (apiKey: string) => {
     {
       title: "Get market index assets climate scores",
       description:
-        "Get physical risk scores for individual assets within the market index.",
+        "Get physical risk scores for individual assets within an index. Use sort_by (e.g., 'expected_impact' descending) and limit to quickly find the most vulnerable assets without exhaustive fetching.",
       inputSchema: INDEX_ASSETS_SCORES_SCHEMA,
     },
     getCallback(

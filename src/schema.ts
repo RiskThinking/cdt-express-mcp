@@ -27,7 +27,9 @@ const ENTITY_FILTER_SCHEMA = z.object({
     .string()
     .length(3)
     .optional()
-    .describe("ISO 3166-1 alpha-3 country code"),
+    .describe(
+      "ISO 3166-1 alpha-3 country code (CRITICAL: You must use 3 letters, e.g., 'USA', 'CAN', 'GBR'. Do NOT use 'US' or 'UK').",
+    ),
   state: z.string().optional().describe("State or region"),
   asset_type: z.string().optional().describe("Physical asset type"),
   sector: z.string().optional().describe("GICS sector"),
@@ -48,7 +50,7 @@ const CLIMATE_PARAMS_SCHEMA = z.object({
     .default([METRICS[0]])
     .optional()
     .describe(
-      "Metrics to include in the response. For definitions, refer to resource: file:///glossary/metrics",
+      "Metrics to include. Note: If the user asks for financial damage or CVaR, you MUST explicitly include 'expected_impact' or 'cvar_95' in this array, otherwise it defaults to dcr_score. For definitions, refer to resource: file:///glossary/metrics",
     ),
 });
 
@@ -71,7 +73,9 @@ const CLUSTER_PARAMS_SCHEMA = z.object({
   bbox: z
     .string()
     .optional()
-    .describe("Bounding box: 'min_lon,min_lat,max_lon,max_lat'"),
+    .describe(
+      "Bounding box: 'min_lon,min_lat,max_lon,max_lat'. WARNING: Ensure Longitude (X) comes before Latitude (Y).",
+    ),
   radius: z.string().optional().describe("Cluster radius"),
 });
 
@@ -93,7 +97,9 @@ export const METRICS_SCHEMA = GEO_POINT_SCHEMA.extend({
   risk_factors: z
     .array(z.enum(RISK_FACTORS))
     .optional()
-    .describe("Risk factors (e.g. 'fwi')"),
+    .describe(
+      "Risk factors. Map natural language to these codes (e.g., use 'cflood' for coastal flooding/sea level rise, 'rflood' for river flooding, 'cyclone' for hurricanes/typhoons, 'hot_days' for extreme heat, 'fwi' for wildfires).",
+    ),
   pathway: z.array(z.enum(PATHWAYS)).optional(),
   horizon: z.array(z.enum(HORIZONS)).optional(),
   percentiles: z
@@ -157,7 +163,13 @@ export const SEARCH_COMPANIES_SCHEMA = z.object({
   isin_code: z.string().optional(),
   stock_ticker: z.string().optional(),
   sector: z.string().optional(),
-  method: z.enum(["fuzzy", "strict"]).default("strict").optional(),
+  method: z
+    .enum(["fuzzy", "strict"])
+    .default("strict")
+    .optional()
+    .describe(
+      "Search method. Defaults to 'strict'. CRITICAL: If a 'strict' search returns no results, you MUST try again with method='fuzzy'.",
+    ),
 });
 
 export const COMPANY_SCORES_SCHEMA = COMPANY_ID_SCHEMA.extend(

@@ -56,6 +56,8 @@ export const toCSV = (results: unknown[]): string => {
   return [headerRow, ...rows].join("\n");
 };
 
+const MAX_EXHAUSTIVE_FETCH_PAGES = 30;
+
 const _fetch = async (
   endpoint: string,
   params: URLSearchParams,
@@ -67,6 +69,7 @@ const _fetch = async (
 ) => {
   const _params = new URLSearchParams(params); // clone the params for pagination cursor change
   let aggResults: unknown[] = [];
+  let pagesFetched = 0;
 
   try {
     while (true) {
@@ -103,11 +106,21 @@ const _fetch = async (
       }
 
       const { cursor, last_page } = data.pagination || {};
-      if (!last_page && cursor) {
-        _params.set("cursor", cursor);
-      } else {
+      pagesFetched += 1;
+
+      if (last_page || !cursor) {
         break;
       }
+      if (pagesFetched >= MAX_EXHAUSTIVE_FETCH_PAGES) {
+        const warning = `Exhaustive fetch stopped after ${MAX_EXHAUSTIVE_FETCH_PAGES} pages (${aggResults.length} rows merged). More pages exist; narrow filters or paginate manually with cursor.`;
+        return {
+          content: [
+            { type: "text" as const, text: warning },
+            { type: "text" as const, text: toCSV(aggResults) },
+          ],
+        };
+      }
+      _params.set("cursor", cursor);
     }
     return {
       content: [{ type: "text" as const, text: toCSV(aggResults) }],
