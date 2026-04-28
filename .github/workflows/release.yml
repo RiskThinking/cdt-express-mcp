@@ -20,12 +20,16 @@ jobs:
           TAG_VER="${GITHUB_REF_NAME#v}"
           MST_VER="$(jq -r '.version' manifest.json)"
           PKG_VER="$(jq -r '.version' package.json)"
+          SRV_VER="$(jq -r '.version' server.json)"
 
           if [ "$TAG_VER" != "$MST_VER" ]; then
             echo "❌ Version mismatch between tag ($TAG_VER) and manifest ($MST_VER)"
             exit 1
           elif [ "$TAG_VER" != "$PKG_VER" ]; then
             echo "❌ Version mismatch between tag ($TAG_VER) and package ($PKG_VER)"
+            exit 1
+          elif [ "$TAG_VER" != "$SRV_VER" ]; then
+            echo "❌ Version mismatch between tag ($TAG_VER) and server ($SRV_VER)"
             exit 1
           else
             echo "✅ Version ($TAG_VER) is consistent across tag, manifest, and package"
