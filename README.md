@@ -46,22 +46,11 @@ Integration:
 - Build and package the extension: `npm run pack:dev`. You should find the `cdt-express.mcpb` file in the root directory.
   - This command is different from `npm run pack` in that it installs back the development dependencies after packaging.
 
-### Versioning
-
-To bump the version of the project:
-- Update the version in package.json by running `npm --no-git-tag-version version <major|minor|patch>`.
-- Update the version in manifest.json to match the version in package.json.
-
-In CI/CD workflows, the version is checked to ensure consistency across the manifest, package, and git tag.
-
 ## Release
 
-The process is automated through GitHub Actions. For details, see [.github/workflows/release.yml](.github/workflows/release.yml).
-
-In a nutshell, the process is as follows:
-- [Human] Bump and sync the version in package.json (see [Development/Versioning](#versioning) section) and `src/server.ts` (constant `SERVER_VERSION`), without the `v` prefix (e.g. `0.5.2` instead of `v0.5.2`.)
-- [Human] Create a new git tag with the new version, with the `v` prefix (e.g. `v0.5.2`). Typically do this through a new GitHub Release https://github.com/RiskThinking/cdt-express-mcp/releases/new, which has the advantage of ensuring code integrity and avoid unexpected local commits/changes.
-- [CI/CD] The GitHub Actions workflow will be triggered, and the MCPB extension will be built and published to the MCP Registry.
+1. [Human] Bump and sync the version in `package.json` and `src/server.ts` (constant `SERVER_VERSION`), without the `v` prefix (e.g. `0.5.2` instead of `v0.5.2`.)
+2. [Human] Create a new git tag with the new version, with the `v` prefix (e.g. `v0.5.2`). Typically do this through a new GitHub Release https://github.com/RiskThinking/cdt-express-mcp/releases/new, which has the advantage of ensuring code integrity and avoid unexpected local commits/changes.
+3. [CI/CD] The GitHub Actions workflow will be triggered, and the MCPB extension will be built and published to the MCP Registry.
   - The version across the git tag and package.json are checked to ensure consistency.
 
 ### MCP Registry `server.json`
@@ -72,6 +61,6 @@ Please refer to https://github.com/modelcontextprotocol/registry for latest deta
 
 ### MCPB `manifest.json`
 
-The `version` field in `manifest.json` is automatically synced with the version in `package.json` by the `npm run sync-manifest` command (invoked by `npm run pack`), therefore intentionally not kept in version control.
+The `version` field in `manifest.json` is automatically synced with the version in `package.json` by the `npm run sync-manifest` command (invoked by `npm run pack`), therefore intentionally not kept in version control. If you intend to make any `manifest.json` changes other than `version`, you should make sure to commit the changes before running `npm run pack` as it would reset (by `git checkout manifest.json`) the whole file.
 
 Please refer to https://github.com/modelcontextprotocol/mcpb/blob/main/MANIFEST.md for the latest MCPB manifest specification.
