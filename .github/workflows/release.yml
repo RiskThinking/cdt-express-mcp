@@ -58,11 +58,18 @@ jobs:
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
 
-      - name: Inject MCPB SHA-256 into server.json
+      - name: Inject MCPB properties into server.json
         run: |
           SHA256=$(sha256sum cdt-express.mcpb | awk '{print $1}')
           echo "Calculated SHA256: $SHA256"
-          jq --arg sha "$SHA256" '.packages[0].fileSha256 = $sha' server.json > server.tmp.json
+
+          DOWNLOAD_URL="https://github.com/RiskThinking/cdt-express-mcp/releases/download/${GITHUB_REF_NAME}/cdt-express.mcpb"
+          echo "Download URL: $DOWNLOAD_URL"
+
+          jq --arg sha "$SHA256" --arg url "$DOWNLOAD_URL" \
+            '.packages[0].fileSha256 = $sha | .packages[0].identifier = $url' \
+            server.json > server.tmp.json
+
           mv server.tmp.json server.json
 
       - name: Publish to MCP Registry
