@@ -1,8 +1,9 @@
 {
-  "name": "cdt-express-mcp",
-  "version": "0.5.2",
+  "name": "@riskthinking.ai/cdt-express-mcp",
+  "version": "0.5.3",
   "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
   "main": "index.js",
+  "mcpName": "io.github.RiskThinking/cdt-express-mcp",
   "scripts": {
     "build": "tsc",
     "pack": "npm run build && npm prune --production && npx -y @anthropic-ai/mcpb pack . cdt-express.mcpb",

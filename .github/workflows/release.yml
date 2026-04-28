@@ -9,7 +9,8 @@ jobs:
   release-mcpb:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # for upload artifacts
+      id-token: write # Required for mcp-publisher OIDC authentication
+      contents: write # Required to upload artifacts to GitHub Releases
 
     steps:
       - uses: actions/checkout@v6
@@ -40,8 +41,25 @@ jobs:
       - run: npm run pack
 
       # upload MCPB extension to the GitHub release
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: cdt-express.mcpb
           generate_release_notes: true
           append_body: false
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Inject MCPB SHA-256 into server.json
+        run: |
+          SHA256=$(sha256sum cdt-express.mcpb | awk '{print $1}')
+          echo "Calculated SHA256: $SHA256"
+          jq --arg sha "$SHA256" '.packages[0].fileSha256 = $sha' server.json > server.tmp.json
+          mv server.tmp.json server.json
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish

@@ -46,8 +46,22 @@ Integration:
 - Build and package the extension: `npm run pack:dev`. You should find the `cdt-express.mcpb` file in the root directory.
   - This command is different from `npm run pack` in that it installs back the development dependencies after packaging.
 
+### Versioning
+
 To bump the version of the project:
 - Update the version in package.json by running `npm --no-git-tag-version version <major|minor|patch>`.
 - Update the version in manifest.json to match the version in package.json.
 
 In CI/CD workflows, the version is checked to ensure consistency across the manifest, package, and git tag.
+
+## Release
+
+The process is automated through GitHub Actions. For details, see [.github/workflows/release.yml](.github/workflows/release.yml).
+
+In a nutshell, the process is as follows:
+- [Human] Bump and sync the version in package.json (see [Development/Versioning](#versioning) section), manifest.json, server.json, and src/server.ts, without the `v` prefix (e.g. `0.5.2` instead of `v0.5.2`.)
+- [Human] Create a new git tag with the new version, with the `v` prefix (e.g. `v0.5.2`). Typically do this through a new GitHub Release https://github.com/RiskThinking/cdt-express-mcp/releases/new, which has the advantage of ensuring code integrity and avoid unexpected local commits/changes.
+- [CI/CD] The GitHub Actions workflow will be triggered, and the MCPB extension will be built and published to the MCP Registry.
+  - The version across the git tag, manifest, package, and server.json are checked to ensure consistency.
+
+Note: refer to https://github.com/modelcontextprotocol/registry for more details on the MCP Registry and track potential changes to the process. The `sha256` field in `server.json` is automatically calculated and injected by the GitHub Actions workflow, therefore intentionally not kept in version control.
