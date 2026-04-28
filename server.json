@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.RiskThinking/cdt-express-mcp",
+  "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
+  "repository": {
+    "url": "https://github.com/RiskThinking/cdt-express-mcp",
+    "source": "github"
+  },
+  "version": "0.5.3",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/RiskThinking/cdt-express-mcp/releases/download/v0.5.3/cdt-express.mcpb",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
