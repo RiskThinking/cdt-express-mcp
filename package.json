@@ -6,7 +6,8 @@
   "mcpName": "io.github.RiskThinking/cdt-express-mcp",
   "scripts": {
     "build": "tsc",
-    "pack": "npm run build && npm prune --production && npx -y @anthropic-ai/mcpb pack . cdt-express.mcpb",
+    "sync-manifest": "node -e \"const fs=require('fs'); const pkg=require('./package.json'); const m=JSON.parse(fs.readFileSync('manifest.json')); m.version=pkg.version; fs.writeFileSync('manifest.json', JSON.stringify(m, null, 2));\"",
+    "pack": "npm run build && npm run sync-manifest && npm prune --production && npx -y @anthropic-ai/mcpb pack . cdt-express.mcpb && git checkout manifest.json",
     "pack:dev": "npm run pack && npm i",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
