@@ -6,7 +6,6 @@
     "url": "https://github.com/RiskThinking/cdt-express-mcp",
     "source": "github"
   },
-  "version": "0.5.3",
   "packages": [
     {
       "registryType": "mcpb",

@@ -29,10 +29,12 @@ import {
 } from "./schema.js";
 import { getCallback } from "./utils.js";
 
+const SERVER_VERSION = "0.5.3";
+
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
     name: "CDT Express MCP Server",
-    version: "0.5.3",
+    version: SERVER_VERSION,
   });
 
   // Glossary resource (passive) and tool (active)

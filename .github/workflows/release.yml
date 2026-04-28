@@ -18,21 +18,13 @@ jobs:
       - name: Verify version consistency
         run: |
           TAG_VER="${GITHUB_REF_NAME#v}"
-          MST_VER="$(jq -r '.version' manifest.json)"
           PKG_VER="$(jq -r '.version' package.json)"
-          SRV_VER="$(jq -r '.version' server.json)"
 
-          if [ "$TAG_VER" != "$MST_VER" ]; then
-            echo "❌ Version mismatch between tag ($TAG_VER) and manifest ($MST_VER)"
-            exit 1
-          elif [ "$TAG_VER" != "$PKG_VER" ]; then
+          if [ "$TAG_VER" != "$PKG_VER" ]; then
             echo "❌ Version mismatch between tag ($TAG_VER) and package ($PKG_VER)"
             exit 1
-          elif [ "$TAG_VER" != "$SRV_VER" ]; then
-            echo "❌ Version mismatch between tag ($TAG_VER) and server ($SRV_VER)"
-            exit 1
           else
-            echo "✅ Version ($TAG_VER) is consistent across tag, manifest, and package"
+            echo "✅ Version ($TAG_VER) is consistent with package.json"
           fi
 
       - uses: actions/setup-node@v6
@@ -42,6 +34,7 @@ jobs:
 
       - run: npm ci
 
+      # sync manifest.json version with package.json and package the MCPB extension
       - run: npm run pack
 
       # upload MCPB extension to the GitHub release
@@ -60,17 +53,27 @@ jobs:
 
       - name: Inject MCPB properties into server.json
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Version: $VERSION"
+
+          # update server.json with the version, sha256, and download url (identifier)
           SHA256=$(sha256sum cdt-express.mcpb | awk '{print $1}')
           echo "Calculated SHA256: $SHA256"
 
           DOWNLOAD_URL="https://github.com/RiskThinking/cdt-express-mcp/releases/download/${GITHUB_REF_NAME}/cdt-express.mcpb"
           echo "Download URL: $DOWNLOAD_URL"
 
-          jq --arg sha "$SHA256" --arg url "$DOWNLOAD_URL" \
-            '.packages[0].fileSha256 = $sha | .packages[0].identifier = $url' \
+          jq --arg ver "$VERSION" --arg sha "$SHA256" --arg url "$DOWNLOAD_URL" \
+            '.version = $ver |
+             .packages[0].version = $ver |
+             .packages[0].fileSha256 = $sha |
+             .packages[0].identifier = $url' \
             server.json > server.tmp.json
 
           mv server.tmp.json server.json
+
+          echo "Updated server.json:"
+          cat server.json
 
       - name: Publish to MCP Registry
         run: ./mcp-publisher publish
