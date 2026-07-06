@@ -5,7 +5,7 @@ import {
   PATHWAYS,
   RISK_FACTORS,
   STATISTICS,
-} from "./constants.js";
+} from "./constants";
 
 export const PAGINATION_SCHEMA = z.object({
   cursor: z.string().optional().describe("Pagination cursor"),

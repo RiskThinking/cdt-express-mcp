@@ -1,3 +1,5 @@
+export const SERVER_VERSION = "0.5.4";
+
 export const RISK_FACTORS: readonly string[] = [
   "cyclone",
   "fwi",

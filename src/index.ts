@@ -1,8 +1,9 @@
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 
-import { getServer } from "./server.js";
+import { getServer } from "./server";
 
-const apiKey = process.env.CDT_API_KEY || process.argv[2];
+const rawKey = process.env.CDT_API_KEY || process.argv[2];
+const apiKey = rawKey?.trim();
 if (!apiKey) {
   console.error("DTO: Error - CDT_API_KEY is missing!");
   process.exit(1);

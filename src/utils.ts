@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { SERVER_VERSION } from "./constants";
 
 type ToolInput = Record<
   string,
@@ -77,12 +78,21 @@ const _fetch = async (
         headers: {
           Authorization: `Bearer ${apiKey}`,
           Accept: "application/json",
+          "User-Agent": `cdt-express-mcp/${SERVER_VERSION} (+https://github.com/RiskThinking/cdt-express-mcp)`,
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API Error ${response.status}: ${errorText}`);
+        throw new Error(`API Error ${response.status}: ${{
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get("content-type"),
+          wwwAuthenticate: response.headers.get("www-authenticate"),
+          cfRay: response.headers.get("cf-ray"),
+          xRequestId: response.headers.get("x-request-id"),
+          bodyPreview: errorText.slice(0, 500),
+        }}`);
       }
 
       const data = await response.json();
