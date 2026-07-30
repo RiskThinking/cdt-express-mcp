@@ -14,6 +14,13 @@ const validateInput = <T>(schema: z.ZodType<T>, input: unknown): T => {
   return result.data;
 };
 
+// The API takes a comma-joined singular `risk_factor`; it silently ignores the
+// plural and falls back to its default hazards. Tool schemas keep the plural
+// name so array-valued inputs read naturally.
+const QUERY_ALIASES: Record<string, string> = {
+  risk_factors: "risk_factor",
+};
+
 const buildParams = (inputs: ToolInput) => {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(inputs)) {
@@ -175,7 +182,7 @@ export const getCallback = <T extends z.ZodTypeAny>(
           // Replace the path value placeholder with the value
           finalUrl = finalUrl.replace(placeholder, String(value));
         } else {
-          queryParams[key] = value;
+          queryParams[QUERY_ALIASES[key] ?? key] = value;
         }
       }
 
