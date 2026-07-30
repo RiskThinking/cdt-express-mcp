@@ -17,3 +17,7 @@ jobs:
       - run: npm ci
 
       - run: npm run pack
+
+      # `tsc` cannot catch a module specifier that only fails to resolve at
+      # runtime, so prove the packaged server actually starts and lists tools.
+      - run: npm run smoke

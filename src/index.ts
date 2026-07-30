@@ -1,6 +1,6 @@
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { getServer } from "./server";
+import { getServer } from "./server.js";
 
 const rawKey = process.env.CDT_API_KEY || process.argv[2];
 const apiKey = rawKey?.trim();

@@ -48,7 +48,7 @@ Integration:
 
 ## Release
 
-1. [Human] Bump and sync the version in `package.json` and `src/server.ts` (constant `SERVER_VERSION`), without the `v` prefix (e.g. `0.5.2` instead of `v0.5.2`.)
+1. [Human] Bump and sync the version in `package.json` and `src/constants.ts` (constant `SERVER_VERSION`), without the `v` prefix (e.g. `0.5.2` instead of `v0.5.2`.)
 2. [Human] Create a new git tag with the new version, with the `v` prefix (e.g. `v0.5.2`). Typically do this through a new GitHub Release https://github.com/RiskThinking/cdt-express-mcp/releases/new, which has the advantage of ensuring code integrity and avoid unexpected local commits/changes.
 3. [CI/CD] The GitHub Actions workflow will be triggered, and the MCPB extension will be built and published to the MCP Registry.
   - The version across the git tag and package.json are checked to ensure consistency.

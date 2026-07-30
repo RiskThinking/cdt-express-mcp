@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { SERVER_VERSION } from "./constants";
+import { SERVER_VERSION } from "./constants.js";
 
 type ToolInput = Record<
   string,

@@ -1,6 +1,6 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
-import { METRICS, SERVER_VERSION } from "./constants";
-import { METRIC_DEFINITIONS } from "./glossary";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { METRICS, SERVER_VERSION } from "./constants.js";
+import { METRIC_DEFINITIONS } from "./glossary.js";
 import {
   ASSET_ID_SCHEMA,
   ASSET_SCORES_SCHEMA,
@@ -26,8 +26,8 @@ import {
   SEARCH_COMPANIES_SCHEMA,
   SEARCH_MARKET_GROUPS_SCHEMA,
   SEARCH_MARKET_INDEXES_SCHEMA,
-} from "./schema";
-import { getCallback } from "./utils";
+} from "./schema.js";
+import { getCallback } from "./utils.js";
 
 export const getServer = (apiKey: string) => {
   const server = new McpServer({
