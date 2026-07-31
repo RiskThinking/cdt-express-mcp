@@ -90,16 +90,20 @@ const _fetch = async (
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Error ${response.status}: ${{
-          status: response.status,
-          statusText: response.statusText,
-          contentType: response.headers.get("content-type"),
-          wwwAuthenticate: response.headers.get("www-authenticate"),
-          cfRay: response.headers.get("cf-ray"),
-          xRequestId: response.headers.get("x-request-id"),
-          bodyPreview: errorText.slice(0, 500),
-        }}`);
+        const body = await response.text();
+        // A bodyless gateway rejection (e.g. a 401 from the edge) leaves these
+        // headers as the only diagnostic, so keep them when present.
+        const trace = ["www-authenticate", "cf-ray", "x-request-id"]
+          .flatMap((header) => {
+            const value = response.headers.get(header);
+            return value ? [`${header}=${value}`] : [];
+          })
+          .join(" ");
+        throw new Error(
+          `API Error ${response.status} ${response.statusText}: ${
+            body.slice(0, 500) || "(empty body)"
+          }${trace && ` [${trace}]`}`,
+        );
       }
 
       const data = await response.json();
