@@ -21,3 +21,32 @@ jobs:
       # `tsc` cannot catch a module specifier that only fails to resolve at
       # runtime, so prove the packaged server actually starts and lists tools.
       - run: npm run smoke
+
+  # auto rebase all dependabot PRs when `main` is updated
+  dependabot-rebase:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Trigger Rebase
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch all open PRs by Dependabot
+          PR_NUMBERS=$(gh pr list --author "app/dependabot" --state open --json number --jq '.[].number')
+
+          if [ -z "$PR_NUMBERS" ]; then
+            echo "No open Dependabot PRs found."
+            exit 0
+          fi
+
+          # Loop through and comment
+          for PR in $PR_NUMBERS; do
+            echo "Commenting on PR #$PR..."
+            gh pr comment $PR --body "@dependabot rebase"
+            sleep 2 # Prevent hitting GitHub API rate limits too quickly
+          done
