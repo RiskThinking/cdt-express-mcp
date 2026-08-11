@@ -16,6 +16,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npm test
+
       - run: npm run pack
 
       # `tsc` cannot catch a module specifier that only fails to resolve at

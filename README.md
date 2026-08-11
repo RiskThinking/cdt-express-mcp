@@ -4,7 +4,47 @@ Interact with climate metrics via Riskthinking.AI's CDT Express API in supported
 
 This project contains:
 - The core MCP server that can be used to interact with Riskthinking.AI's CDT Express API.
+- A remote Streamable HTTP server that users can connect to by URL and authorize with their VELO account.
 - Distributable MCPB extension for the Claude desktop app in [releases](https://github.com/RiskThinking/cdt-express-mcp/releases).
+
+## Remote MCP
+
+Once deployed, add the following URL as a custom MCP server in a compatible AI app:
+
+```text
+https://mcp.riskthinking.ai/mcp
+```
+
+The app opens VELO for sign-in or sign-up. After that, authorization completes automatically: the CDT API key is transferred server-to-server and is never shown to the AI app, browser URL, or MCP logs.
+
+- **ChatGPT:** enable Developer mode, add a custom plugin/connector, and enter the URL above.
+- **Claude web/desktop:** add a custom connector using the URL above. Claude API callers can obtain an OAuth token with the same flow and pass it as `authorization_token`.
+- **Gemini:** use the URL as a Streamable HTTP MCP server. Availability of custom remote servers in consumer Gemini surfaces depends on the Google product/account; the Gemini Interactions API accepts remote MCP URLs.
+
+The existing MCPB/stdio package remains available for local-only use.
+
+### Run the remote server
+
+```bash
+cp .env.example .env
+# Set MCP_OAUTH_SECRET to: openssl rand -base64 48
+npm ci
+npm run build
+npm run start:http
+```
+
+Or build and run the included `Dockerfile`. Production requires HTTPS at `MCP_PUBLIC_BASE_URL`. The [Cloud Run deployment guide](docs/cloud-run-deployment.md) covers WIF/IAM provisioning, GitHub configuration, and the Cloudflare DNS mapping. Configure the `visual-eyes` deployment with `CDT_MCP_URL=https://mcp.riskthinking.ai/mcp` so its `/mcp/authorize` route can complete the authenticated handoff.
+
+The HTTP server provides:
+
+- Streamable HTTP at `/mcp`, with JSON responses for broad client compatibility.
+- OAuth protected-resource and authorization-server discovery.
+- OAuth 2.1 authorization code flow with S256 PKCE and RFC 8707 resource binding.
+- CIMD for current clients and dynamic client registration for backward compatibility.
+- One-hour encrypted access tokens and 30-day encrypted refresh tokens. No credential database is required.
+- Strict callback-origin allowlisting, bearer checks on every MCP request, per-token session binding, host/origin validation, and bounded request bodies.
+
+`MCP_OAUTH_SECRET` is the only durable secret and must be shared by all remote MCP instances. Rotating it invalidates existing client registrations and tokens. The current TypeScript SDK negotiates MCP through `2025-11-25`, which is what the major hosted clients currently use; the endpoint is deliberately structured for the stateless `2026-07-28` transport and can switch once the stable TypeScript SDK exposes that protocol revision.
 
 ## MCPB Extension Installation
 
@@ -36,7 +76,7 @@ Other CDT Express APIs:
 
 Integration:
 - [x] Since `v0.1.0`: Support Stdio transport for local MCP server connectivity (e.g. extension for Claude desktop app and IDEs such as Cursor.)
-- [ ] Support Streamable HTTP transport for remote MCP server connectivity to support web AI chat experiences.
+- [x] Since `v0.6.0`: Support authenticated Streamable HTTP transport for remote MCP server connectivity to web AI chat experiences.
 
 ## Development
 
@@ -45,6 +85,7 @@ Integration:
 - Install dependencies: `npm i`
 - Build and package the extension: `npm run pack:dev`. You should find the `cdt-express.mcpb` file in the root directory.
   - This command is different from `npm run pack` in that it installs back the development dependencies after packaging.
+- Run the remote OAuth + MCP integration test: `npm test`.
 
 ## Release
 

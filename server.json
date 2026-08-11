@@ -6,6 +6,12 @@
     "url": "https://github.com/RiskThinking/cdt-express-mcp",
     "source": "github"
   },
+  "remotes": [
+    {
+      "transportType": "streamable-http",
+      "url": "https://mcp.riskthinking.ai/mcp"
+    }
+  ],
   "packages": [
     {
       "registryType": "mcpb",
