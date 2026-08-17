@@ -41,6 +41,7 @@ test("remote OAuth and MCP flow", async (t) => {
       HOST: "127.0.0.1",
       MCP_PUBLIC_BASE_URL: baseUrl,
       MCP_OAUTH_SECRET: "test-only-secret-that-is-at-least-32-characters",
+      MCP_TRUST_PROXY_HOPS: "1",
       VELO_AUTHORIZE_URL: `${baseUrl}/fake-velo-authorize`,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -84,7 +85,11 @@ test("remote OAuth and MCP flow", async (t) => {
   const redirectUri = "http://127.0.0.1/callback";
   const registrationResponse = await fetch(`${baseUrl}/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Forwarded: "for=203.0.113.10;proto=https",
+      "X-Forwarded-For": "203.0.113.10",
+    },
     body: JSON.stringify({
       client_name: "CDT Express integration test",
       redirect_uris: [redirectUri],
@@ -110,8 +115,15 @@ test("remote OAuth and MCP flow", async (t) => {
     state: "state-123",
     resource: resourceUrl,
   });
-  const authorizeResponse = await fetch(authorizeUrl, { redirect: "manual" });
+  const authorizeResponse = await fetch(authorizeUrl, {
+    redirect: "manual",
+    headers: {
+      Forwarded: "for=203.0.113.10;proto=https",
+      "X-Forwarded-For": "203.0.113.10",
+    },
+  });
   assert.equal(authorizeResponse.status, 302);
+  assert.doesNotMatch(stderr, /ERR_ERL_/);
   const veloRedirect = new URL(authorizeResponse.headers.get("location"));
   assert.equal(veloRedirect.pathname, "/fake-velo-authorize");
   const authorizationRequest = veloRedirect.searchParams.get("request");

@@ -95,6 +95,15 @@ async function main() {
     allowedHosts.add("localhost");
   }
   const app = express();
+  const trustProxyHopsValue = process.env.MCP_TRUST_PROXY_HOPS || "0";
+  if (!/^\d+$/.test(trustProxyHopsValue)) {
+    throw new Error("MCP_TRUST_PROXY_HOPS must be a non-negative integer");
+  }
+  const trustProxyHops = Number.parseInt(trustProxyHopsValue, 10);
+  if (!Number.isSafeInteger(trustProxyHops)) {
+    throw new Error("MCP_TRUST_PROXY_HOPS must be a non-negative integer");
+  }
+  if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
   app.use(hostHeaderValidation([...allowedHosts]));
 
   app.get("/health", (_req, res) => {

@@ -82,6 +82,7 @@ jobs:
             HOST=0.0.0.0
             MCP_PUBLIC_BASE_URL=https://mcp.riskthinking.ai
             MCP_ALLOWED_HOSTS=${{ vars.GCP_CLOUD_RUN_HOST }}
+            MCP_TRUST_PROXY_HOPS=1
             VELO_AUTHORIZE_URL=https://velo.riskthinking.ai/mcp/authorize
             MCP_ALLOWED_ORIGINS=https://chatgpt.com\,https://claude.ai\,https://gemini.google.com
             MCP_ALLOWED_REDIRECT_ORIGINS=https://chatgpt.com\,https://claude.ai\,https://platform.claude.com\,https://gemini.google.com
