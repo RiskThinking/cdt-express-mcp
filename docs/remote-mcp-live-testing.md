@@ -242,6 +242,13 @@ latter signs out every connected MCP client.
 - **OAuth opens but VELO reports an invalid or expired request:** confirm the
   VELO and MCP production revisions match. Retry from a fresh Connect action
   instead of reusing browser history.
+- **A client returns `invalid_client` before VELO opens:** leave advanced client
+  credentials empty when the client supports CIMD or DCR. Confirm
+  `MCP_ALLOWED_CIMD_ORIGINS` is `*` for open compatibility, or that a closed
+  deployment's explicit allowlist includes the client's metadata origin. CIMD
+  URLs are accepted only over HTTPS and only when every resolved address is
+  public; redirects, oversized documents, invalid schemas, and mismatched
+  `client_id` values are rejected.
 - **Login or verification lands on a generic VELO page:** confirm production
   VELO includes the MCP return-path changes and that cookies are allowed.
 - **Consent succeeds but the AI platform never reconnects:** inspect the final
@@ -255,8 +262,9 @@ latter signs out every connected MCP client.
 - **A tool call returns a CDT API 401/403:** verify the VELO user's subscription
   and API key. This is downstream API authorization, not MCP OAuth discovery.
 - **Only one platform fails callback validation:** capture the rejected
-  `redirect_uri` origin from sanitized logs and compare it with
-  `MCP_ALLOWED_REDIRECT_ORIGINS`. Never log codes, tokens, or API keys.
+  `redirect_uri` from sanitized logs and compare it with that client's
+  registered or CIMD `redirect_uris`. The SDK requires an exact match except
+  for ephemeral loopback ports. Never log codes, tokens, or API keys.
 
 Useful Cloud Run log query:
 

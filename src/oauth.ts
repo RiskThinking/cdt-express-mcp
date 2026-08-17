@@ -4,14 +4,13 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
-import type { Response } from "express";
+import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import {
   InvalidGrantError,
   InvalidScopeError,
   InvalidTargetError,
   InvalidTokenError,
 } from "@modelcontextprotocol/sdk/server/auth/errors.js";
-import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import type {
   AuthorizationParams,
   OAuthServerProvider,
@@ -22,9 +21,12 @@ import type {
   OAuthTokenRevocationRequest,
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { OAuthClientMetadataSchema } from "@modelcontextprotocol/sdk/shared/auth.js";
+import type { Response } from "express";
+
+import { resolveCimdClient } from "./cimd.js";
 
 export const MCP_SCOPE = "mcp:tools";
+export const DEFAULT_CIMD_ORIGIN_POLICY = "*";
 
 const AUTHORIZATION_TTL_SECONDS = 5 * 60;
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
@@ -40,6 +42,8 @@ type BaseClaims = {
 
 type AuthorizationClaims = {
   clientId: string;
+  clientName: string;
+  clientUri?: string;
   redirectUri: string;
   codeChallenge: string;
   state?: string;
@@ -120,57 +124,54 @@ class Sealer {
 }
 
 class SealedClientsStore implements OAuthRegisteredClientsStore {
+  private readonly cimdCache = new Map<
+    string,
+    { client: OAuthClientInformationFull; expiresAt: number }
+  >();
+
   constructor(
     private readonly sealer: Sealer,
-    private readonly allowedCimdOrigins: Set<string>,
+    private readonly allowedCimdOrigins?: ReadonlySet<string>,
   ) {}
 
-  async getClient(clientId: string): Promise<OAuthClientInformationFull | undefined> {
+  async getClient(
+    clientId: string,
+  ): Promise<OAuthClientInformationFull | undefined> {
     try {
       const metadata = this.sealer.open<
         Omit<OAuthClientInformationFull, "client_id">
       >("client", clientId);
-      const { type: _type, issuedAt: _issuedAt, expiresAt: _expiresAt, ...client } =
-        metadata;
+      const {
+        type: _type,
+        issuedAt: _issuedAt,
+        expiresAt: _expiresAt,
+        ...client
+      } = metadata;
       return { ...client, client_id: clientId };
     } catch {}
 
-    let url: URL;
-    try {
-      url = new URL(clientId);
-    } catch {
-      return undefined;
-    }
-    if (url.protocol !== "https:" || !this.allowedCimdOrigins.has(url.origin)) {
-      return undefined;
-    }
+    const cached = this.cimdCache.get(clientId);
+    if (cached && cached.expiresAt > Date.now()) return cached.client;
+    if (cached) this.cimdCache.delete(clientId);
 
-    try {
-      const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        redirect: "error",
-        signal: AbortSignal.timeout(3_000),
-      });
-      if (!response.ok) return undefined;
-      const contentLength = Number(response.headers.get("content-length") || 0);
-      if (contentLength > 64 * 1024) return undefined;
-      const raw = JSON.parse(await response.text());
-      if (raw.client_id && raw.client_id !== clientId) return undefined;
-      const parsed = OAuthClientMetadataSchema.safeParse(raw);
-      if (!parsed.success) return undefined;
-      return {
-        ...parsed.data,
-        client_id: clientId,
-        token_endpoint_auth_method:
-          parsed.data.token_endpoint_auth_method || "none",
-      };
-    } catch {
-      return undefined;
+    const client = await resolveCimdClient(clientId, this.allowedCimdOrigins);
+    if (!client) return undefined;
+    if (this.cimdCache.size >= 256) {
+      const oldest = this.cimdCache.keys().next().value;
+      if (oldest) this.cimdCache.delete(oldest);
     }
+    this.cimdCache.set(clientId, {
+      client,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+    return client;
   }
 
   registerClient(
-    client: Omit<OAuthClientInformationFull, "client_id" | "client_id_issued_at">,
+    client: Omit<
+      OAuthClientInformationFull,
+      "client_id" | "client_id_issued_at"
+    >,
   ): OAuthClientInformationFull {
     const clientId = this.sealer.seal("client", client);
     return {
@@ -186,8 +187,7 @@ export type OAuthConfig = {
   issuerUrl: URL;
   resourceUrl: URL;
   veloAuthorizeUrl: URL;
-  allowedRedirectOrigins: Set<string>;
-  allowedCimdOrigins: Set<string>;
+  allowedCimdOrigins?: ReadonlySet<string>;
 };
 
 export class VeloOAuthProvider implements OAuthServerProvider {
@@ -208,7 +208,6 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     params: AuthorizationParams,
     res: Response,
   ): Promise<void> {
-    this.assertRedirectAllowed(params.redirectUri);
     const scopes = params.scopes?.length ? params.scopes : [MCP_SCOPE];
     if (scopes.some((scope) => scope !== MCP_SCOPE)) {
       throw new InvalidScopeError("Only the mcp:tools scope is supported");
@@ -216,13 +215,17 @@ export class VeloOAuthProvider implements OAuthServerProvider {
 
     const resource = params.resource?.href ?? this.config.resourceUrl.href;
     if (resource !== this.config.resourceUrl.href) {
-      throw new InvalidTargetError("The requested resource is not this MCP server");
+      throw new InvalidTargetError(
+        "The requested resource is not this MCP server",
+      );
     }
 
     const request = this.sealer.seal<AuthorizationClaims>(
       "request",
       {
         clientId: client.client_id,
+        clientName: client.client_name || "AI application",
+        clientUri: client.client_uri,
         redirectUri: params.redirectUri,
         codeChallenge: params.codeChallenge,
         state: params.state,
@@ -236,18 +239,38 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     res.redirect(302, url.href);
   }
 
+  describeAuthorizationRequest(request: string) {
+    let pending: BaseClaims & AuthorizationClaims;
+    try {
+      pending = this.sealer.open<AuthorizationClaims>("request", request);
+    } catch {
+      throw new InvalidGrantError(
+        "The authorization request is invalid or expired",
+      );
+    }
+    return {
+      client_name: pending.clientName || "AI application",
+      client_uri: pending.clientUri,
+      redirect_uri: pending.redirectUri,
+    };
+  }
+
   completeVeloAuthorization(request: string, apiKey: string): string {
     let pending: BaseClaims & AuthorizationClaims;
     try {
       pending = this.sealer.open<AuthorizationClaims>("request", request);
     } catch {
-      throw new InvalidGrantError("The authorization request is invalid or expired");
+      throw new InvalidGrantError(
+        "The authorization request is invalid or expired",
+      );
     }
 
     const code = this.sealer.seal<CodeClaims>(
       "code",
       {
         clientId: pending.clientId,
+        clientName: pending.clientName,
+        clientUri: pending.clientUri,
         redirectUri: pending.redirectUri,
         codeChallenge: pending.codeChallenge,
         state: pending.state,
@@ -282,7 +305,9 @@ export class VeloOAuthProvider implements OAuthServerProvider {
   ): Promise<OAuthTokens> {
     const code = this.openCode(client, authorizationCode);
     if (redirectUri && redirectUri !== code.redirectUri) {
-      throw new InvalidGrantError("redirect_uri does not match the authorization request");
+      throw new InvalidGrantError(
+        "redirect_uri does not match the authorization request",
+      );
     }
     this.assertResource(resource?.href ?? code.resource);
     this.consumeAuthorizationCode(authorizationCode, code.expiresAt);
@@ -308,12 +333,16 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       throw new InvalidGrantError("The refresh token is invalid or expired");
     }
     if (claims.clientId !== client.client_id) {
-      throw new InvalidGrantError("The refresh token belongs to another client");
+      throw new InvalidGrantError(
+        "The refresh token belongs to another client",
+      );
     }
     this.assertResource(resource?.href ?? claims.resource);
     const nextScopes = scopes?.length ? scopes : claims.scopes;
     if (nextScopes.some((scope) => !claims.scopes.includes(scope))) {
-      throw new InvalidScopeError("Refresh scopes may not exceed granted scopes");
+      throw new InvalidScopeError(
+        "Refresh scopes may not exceed granted scopes",
+      );
     }
     return this.issueTokens({ ...claims, scopes: nextScopes });
   }
@@ -348,13 +377,17 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       if (claims.clientId !== client.client_id) throw new Error("Wrong client");
       return claims;
     } catch {
-      throw new InvalidGrantError("The authorization code is invalid or expired");
+      throw new InvalidGrantError(
+        "The authorization code is invalid or expired",
+      );
     }
   }
 
   private assertResource(resource: string) {
     if (resource !== this.config.resourceUrl.href) {
-      throw new InvalidTargetError("The token is not valid for this MCP server");
+      throw new InvalidTargetError(
+        "The token is not valid for this MCP server",
+      );
     }
   }
 
@@ -366,22 +399,14 @@ export class VeloOAuthProvider implements OAuthServerProvider {
 
     const digest = createHash("sha256").update(code).digest("base64url");
     if (this.usedAuthorizationCodes.has(digest)) {
-      throw new InvalidGrantError("The authorization code has already been used");
+      throw new InvalidGrantError(
+        "The authorization code has already been used",
+      );
     }
     this.usedAuthorizationCodes.set(
       digest,
       expiresAt ?? now + AUTHORIZATION_TTL_SECONDS,
     );
-  }
-
-  private assertRedirectAllowed(redirectUri: string) {
-    const redirect = new URL(redirectUri);
-    const isLoopback =
-      redirect.protocol === "http:" &&
-      (redirect.hostname === "127.0.0.1" || redirect.hostname === "[::1]");
-    if (!isLoopback && !this.config.allowedRedirectOrigins.has(redirect.origin)) {
-      throw new InvalidGrantError("This OAuth callback is not approved for CDT Express");
-    }
   }
 
   private issueTokens(claims: TokenClaims): OAuthTokens {

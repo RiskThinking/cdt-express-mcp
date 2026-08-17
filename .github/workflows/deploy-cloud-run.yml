@@ -85,8 +85,7 @@ jobs:
             MCP_TRUST_PROXY_HOPS=1
             VELO_AUTHORIZE_URL=https://velo.riskthinking.ai/mcp/authorize
             MCP_ALLOWED_ORIGINS=https://chatgpt.com\,https://claude.ai\,https://gemini.google.com
-            MCP_ALLOWED_REDIRECT_ORIGINS=https://chatgpt.com\,https://claude.ai\,https://platform.claude.com\,https://gemini.google.com
-            MCP_ALLOWED_CIMD_ORIGINS=https://chatgpt.com
+            MCP_ALLOWED_CIMD_ORIGINS=*
           secrets: |-
             MCP_OAUTH_SECRET=cdt-express-mcp-oauth-secret:latest
           flags: >-

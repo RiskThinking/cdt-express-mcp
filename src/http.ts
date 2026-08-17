@@ -1,14 +1,22 @@
 import { randomUUID } from "node:crypto";
-import type { Request, Response } from "express";
-import { createOAuthMetadata, getOAuthProtectedResourceMetadataUrl, mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
+import {
+  createOAuthMetadata,
+  getOAuthProtectedResourceMetadataUrl,
+  mcpAuthRouter,
+} from "@modelcontextprotocol/sdk/server/auth/router.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { hostHeaderValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import type { Request, Response } from "express";
 import express from "express";
 
-import { MCP_SCOPE, VeloOAuthProvider } from "./oauth.js";
+import {
+  DEFAULT_CIMD_ORIGIN_POLICY,
+  MCP_SCOPE,
+  VeloOAuthProvider,
+} from "./oauth.js";
 import { getServer } from "./server.js";
 
 type AuthenticatedRequest = Request & { auth?: AuthInfo };
@@ -58,27 +66,28 @@ async function main() {
   if (!secret || secret.length < 32) {
     throw new Error("MCP_OAUTH_SECRET must be at least 32 characters");
   }
+  const cimdOriginPolicy =
+    process.env.MCP_ALLOWED_CIMD_ORIGINS || DEFAULT_CIMD_ORIGIN_POLICY;
 
   const provider = new VeloOAuthProvider({
     secret,
     issuerUrl: publicBaseUrl,
     resourceUrl,
     veloAuthorizeUrl,
-    allowedRedirectOrigins: new Set(
-      (process.env.MCP_ALLOWED_REDIRECT_ORIGINS ||
-        "https://chatgpt.com,https://claude.ai,https://platform.claude.com,https://gemini.google.com")
-        .split(",")
-        .map((origin) => new URL(origin.trim()).origin),
-    ),
-    allowedCimdOrigins: new Set(
-      (process.env.MCP_ALLOWED_CIMD_ORIGINS || "https://chatgpt.com")
-        .split(",")
-        .map((origin) => new URL(origin.trim()).origin),
-    ),
+    allowedCimdOrigins:
+      cimdOriginPolicy.trim() === "*"
+        ? undefined
+        : new Set(
+            cimdOriginPolicy
+              .split(",")
+              .map((origin) => new URL(origin.trim()).origin),
+          ),
   });
   const allowedOrigins = new Set(
-    (process.env.MCP_ALLOWED_ORIGINS ||
-      "https://chatgpt.com,https://claude.ai,https://gemini.google.com")
+    (
+      process.env.MCP_ALLOWED_ORIGINS ||
+      "https://chatgpt.com,https://claude.ai,https://gemini.google.com"
+    )
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean),
@@ -120,13 +129,36 @@ async function main() {
   });
 
   app.post(
+    "/oauth/authorization-request",
+    express.json({ limit: "16kb" }),
+    (req, res) => {
+      res.setHeader("Cache-Control", "no-store");
+      if (typeof req.body?.request !== "string") {
+        res.status(400).json({ error: "request is required" });
+        return;
+      }
+      try {
+        res.json(provider.describeAuthorizationRequest(req.body.request));
+      } catch {
+        res
+          .status(400)
+          .json({ error: "Authorization request is invalid or expired" });
+      }
+    },
+  );
+
+  app.post(
     "/oauth/velo/callback",
     express.json({ limit: "16kb" }),
     (req, res) => {
       res.setHeader("Cache-Control", "no-store");
       const request = req.body?.request;
       const apiKey = req.body?.api_key;
-      if (typeof request !== "string" || typeof apiKey !== "string" || !apiKey.trim()) {
+      if (
+        typeof request !== "string" ||
+        typeof apiKey !== "string" ||
+        !apiKey.trim()
+      ) {
         res.status(400).json({ error: "request and api_key are required" });
         return;
       }
@@ -137,7 +169,9 @@ async function main() {
         );
         res.json({ redirect_url: redirectUrl });
       } catch {
-        res.status(400).json({ error: "Authorization request is invalid or expired" });
+        res
+          .status(400)
+          .json({ error: "Authorization request is invalid or expired" });
       }
     },
   );
@@ -180,7 +214,10 @@ async function main() {
     if (session.authorizationId !== getAuthorizationId(req)) {
       res.status(403).json({
         jsonrpc: "2.0",
-        error: { code: -32003, message: "MCP session belongs to another authorization" },
+        error: {
+          code: -32003,
+          message: "MCP session belongs to another authorization",
+        },
         id: null,
       });
       return undefined;
@@ -198,13 +235,17 @@ async function main() {
         const sessionId = req.header("mcp-session-id");
         if (sessionId) {
           const session = requireSession(req, res);
-          if (session) await session.transport.handleRequest(req, res, req.body);
+          if (session)
+            await session.transport.handleRequest(req, res, req.body);
           return;
         }
         if (!isInitializeRequest(req.body)) {
           res.status(400).json({
             jsonrpc: "2.0",
-            error: { code: -32000, message: "Initialize the MCP session first" },
+            error: {
+              code: -32000,
+              message: "Initialize the MCP session first",
+            },
             id: null,
           });
           return;
@@ -263,15 +304,18 @@ async function main() {
     },
   );
 
-  const cleanup = setInterval(() => {
-    const cutoff = Date.now() - SESSION_IDLE_MS;
-    for (const [id, session] of sessions) {
-      if (session.lastSeen < cutoff) {
-        sessions.delete(id);
-        void session.transport.close();
+  const cleanup = setInterval(
+    () => {
+      const cutoff = Date.now() - SESSION_IDLE_MS;
+      for (const [id, session] of sessions) {
+        if (session.lastSeen < cutoff) {
+          sessions.delete(id);
+          void session.transport.close();
+        }
       }
-    }
-  }, 10 * 60 * 1000);
+    },
+    10 * 60 * 1000,
+  );
   cleanup.unref();
 
   const server = app.listen(port, host, () => {

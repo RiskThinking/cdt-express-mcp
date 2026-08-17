@@ -115,6 +115,18 @@ test("remote OAuth and MCP flow", async (t) => {
     state: "state-123",
     resource: resourceUrl,
   });
+
+  const rejectedRedirectUrl = new URL(authorizeUrl);
+  rejectedRedirectUrl.searchParams.set(
+    "redirect_uri",
+    "https://unregistered-client.example/callback",
+  );
+  const rejectedRedirectResponse = await fetch(rejectedRedirectUrl, {
+    redirect: "manual",
+  });
+  assert.equal(rejectedRedirectResponse.status, 400);
+  assert.equal((await rejectedRedirectResponse.json()).error, "invalid_request");
+
   const authorizeResponse = await fetch(authorizeUrl, {
     redirect: "manual",
     headers: {
@@ -128,6 +140,20 @@ test("remote OAuth and MCP flow", async (t) => {
   assert.equal(veloRedirect.pathname, "/fake-velo-authorize");
   const authorizationRequest = veloRedirect.searchParams.get("request");
   assert.match(authorizationRequest, /^cdt_request_/);
+
+  const requestDescriptionResponse = await fetch(
+    `${baseUrl}/oauth/authorization-request`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request: authorizationRequest }),
+    },
+  );
+  assert.equal(requestDescriptionResponse.status, 200);
+  assert.deepEqual(await requestDescriptionResponse.json(), {
+    client_name: "CDT Express integration test",
+    redirect_uri: redirectUri,
+  });
 
   const handoffResponse = await fetch(`${baseUrl}/oauth/velo/callback`, {
     method: "POST",

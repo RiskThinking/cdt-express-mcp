@@ -58,13 +58,14 @@ The HTTP server provides:
 - OAuth protected-resource and authorization-server discovery.
 - OAuth 2.1 authorization code flow with S256 PKCE and RFC 8707 resource
   binding.
-- Client ID Metadata Documents (CIMD) for current clients and dynamic client
-  registration for backward compatibility.
+- Client ID Metadata Documents (CIMD) for any standards-compliant HTTPS client,
+  with public-IP-pinned fetching, redirect rejection, strict size/time limits,
+  and dynamic client registration for backward compatibility.
 - One-hour encrypted access tokens and 30-day encrypted refresh tokens, with
   no credential database required.
-- Strict callback-origin allowlisting, bearer checks on every MCP request,
-  per-authorization session binding, host/origin validation, and bounded
-  request bodies.
+- Exact callback validation against each client's registered or fetched
+  metadata, bearer checks on every MCP request, per-authorization session
+  binding, host/origin validation, and bounded request bodies.
 
 `MCP_OAUTH_SECRET` is the only durable secret and must be shared by all remote
 MCP instances. Rotating it invalidates existing client registrations and
