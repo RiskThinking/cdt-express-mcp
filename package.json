@@ -8,11 +8,15 @@
   "scripts": {
     "build": "tsc",
     "build:mcpb": "node scripts/build-mcpb.mjs",
+    "bump:version": "node scripts/bump-version.mjs",
+    "check:version": "node scripts/sync-version.mjs --check",
     "start:http": "node build/http.js",
     "dev:http": "npm run build && node --env-file-if-exists=.env build/http.js",
     "smoke": "node scripts/smoke-mcp.mjs",
     "pack": "npm run build:mcpb",
-    "test": "npm run build && node --test test/*.test.js"
+    "sync:version": "node scripts/sync-version.mjs",
+    "test": "npm run check:version && npm run build && node --test test/*.test.js",
+    "version": "npm run sync:version"
   },
   "keywords": [
     "mcp",

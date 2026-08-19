@@ -135,8 +135,10 @@ Integration:
 
 ## Release
 
-1. Bump and synchronize the version in `package.json`, `server.json`, and the
-   `SERVER_VERSION` constant in `src/constants.ts`, without the `v` prefix.
+1. Run `npm run bump:version -- <version>`. The command treats `package.json`
+   as the source of truth and synchronizes the lockfile, `server.json`,
+   `manifest.json`, and the runtime `SERVER_VERSION` constant. It does not
+   create a Git tag; the GitHub release does that after the change is merged.
 2. Create a GitHub release and tag using the version with a `v` prefix, such as
    `v0.5.2`, from the
    [new release page](https://github.com/RiskThinking/cdt-express-mcp/releases/new).

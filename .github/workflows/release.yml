@@ -13,25 +13,26 @@ jobs:
       contents: write # Required to upload artifacts to GitHub Releases
 
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Verify version consistency
-        run: |
-          TAG_VER="${GITHUB_REF_NAME#v}"
-          PKG_VER="$(jq -r '.version' package.json)"
-          SERVER_VER="$(jq -r '.version' server.json)"
-
-          if [ "$TAG_VER" != "$PKG_VER" ] || [ "$TAG_VER" != "$SERVER_VER" ]; then
-            echo "❌ Version mismatch: tag=$TAG_VER package.json=$PKG_VER server.json=$SERVER_VER"
-            exit 1
-          else
-            echo "✅ Version ($TAG_VER) is consistent across release metadata"
-          fi
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: 'npm'
+
+      - name: Verify version consistency
+        run: |
+          npm run check:version
+
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          PKG_VER="$(jq -r '.version' package.json)"
+
+          if [ "$TAG_VER" != "$PKG_VER" ]; then
+            echo "❌ Version mismatch: tag=$TAG_VER package.json=$PKG_VER"
+            exit 1
+          else
+            echo "✅ Version ($TAG_VER) is consistent across release metadata"
+          fi
 
       - run: npm ci
 
