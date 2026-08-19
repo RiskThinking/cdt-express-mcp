@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -23,13 +23,19 @@ jobs:
       - name: Verify lean MCPB contents
         run: |
           unzip -Z1 cdt-express.mcpb | sort > mcpb-files.txt
-          diff -u <(printf '%s\n' LICENSE build/index.js manifest.json) mcpb-files.txt
+          diff -u <(printf '%s\n' LICENSE build/index.mjs manifest.json) mcpb-files.txt
           test "$(stat -c%s cdt-express.mcpb)" -lt 1000000
 
       # Prove both entry points complete an MCP handshake and list tools.
       - run: npm run smoke
-      - run: unzip -p cdt-express.mcpb build/index.js > /tmp/cdt-express-mcpb.js
-      - run: npm run smoke -- /tmp/cdt-express-mcpb.js
+      - run: unzip -p cdt-express.mcpb build/index.mjs > /tmp/cdt-express-mcpb.mjs
+
+      # Node 20 predates automatic ESM syntax detection, so this verifies that
+      # the bundle's module type is explicit rather than inferred.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - run: npm run smoke -- /tmp/cdt-express-mcpb.mjs
 
   # auto rebase all dependabot PRs when `main` is updated
   dependabot-rebase:

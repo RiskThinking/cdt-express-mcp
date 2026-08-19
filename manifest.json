@@ -9,11 +9,11 @@
   },
   "server": {
     "type": "node",
-    "entry_point": "build/index.js",
+    "entry_point": "build/index.mjs",
     "mcp_config": {
       "command": "node",
       "args": [
-        "${__dirname}/build/index.js"
+        "${__dirname}/build/index.mjs"
       ],
       "env": {
         "CDT_API_KEY": "${user_config.api_key}"

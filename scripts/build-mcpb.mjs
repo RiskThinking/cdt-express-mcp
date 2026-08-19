@@ -38,7 +38,9 @@ try {
   // local extension without coupling the remote deployment to MCPB packaging.
   const result = await build({
     entryPoints: [join(root, "src/index.ts")],
-    outfile: join(stagingDirectory, "build/index.js"),
+    // .mjs makes the ESM contract independent of Node's syntax detection and
+    // of any package.json that may exist above the extension directory.
+    outfile: join(stagingDirectory, "build/index.mjs"),
     bundle: true,
     platform: "node",
     format: "esm",
