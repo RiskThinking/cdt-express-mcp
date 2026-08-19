@@ -127,15 +127,16 @@ Integration:
 - Optionally use [nvm](https://github.com/nvm-sh/nvm) with `nvm use` to select
   the Node.js version in `.nvmrc`.
 - Install dependencies with `npm install`.
-- Build and package the extension with `npm run pack:dev`. The resulting
-  `cdt-express.mcpb` file is written to the repository root. Unlike `npm run
-  pack`, this command reinstalls development dependencies after packaging.
+- Build and package the extension with `npm run pack`. The resulting
+  `cdt-express.mcpb` file is written to the repository root. The command bundles
+  only the local stdio server into an isolated staging directory, leaving the
+  remote HTTP/OAuth server and its dependencies out of the extension.
 - Run the remote OAuth and MCP integration tests with `npm test`.
 
 ## Release
 
-1. Bump and synchronize the version in `package.json` and the `SERVER_VERSION`
-   constant in `src/constants.ts`, without the `v` prefix.
+1. Bump and synchronize the version in `package.json`, `server.json`, and the
+   `SERVER_VERSION` constant in `src/constants.ts`, without the `v` prefix.
 2. Create a GitHub release and tag using the version with a `v` prefix, such as
    `v0.5.2`, from the
    [new release page](https://github.com/RiskThinking/cdt-express-mcp/releases/new).
@@ -144,15 +145,15 @@ Integration:
 
 ### MCP Registry `server.json`
 
-The release workflow calculates and injects `version`, `package[0].sha256`, and
-`package[0].identifier`, so they are intentionally not kept in version control.
-See the [MCP Registry documentation](https://github.com/modelcontextprotocol/registry)
+The checked-in file is a valid remote-only server definition. The release
+workflow calculates the MCPB hash and download URL, adds the complete
+`packages[0]` record, validates the result, and publishes both installation
+options together. See the [MCP Registry documentation](https://github.com/modelcontextprotocol/registry)
 for the current publishing process.
 
 ### MCPB `manifest.json`
 
-`npm run pack` synchronizes the manifest version from `package.json`. The pack
-command then restores `manifest.json` with `git checkout`, so commit any other
-manifest changes before packaging. See the
+`npm run pack` synchronizes the staged manifest version from `package.json`
+without modifying the checked-in `manifest.json`. See the
 [MCPB manifest specification](https://github.com/modelcontextprotocol/mcpb/blob/main/MANIFEST.md)
 for current requirements.

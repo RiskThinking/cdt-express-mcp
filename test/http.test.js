@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import net from "node:net";
-import { spawn } from "node:child_process";
 import test from "node:test";
 
 const getFreePort = async () => {
@@ -59,11 +59,14 @@ test("remote OAuth and MCP flow", async (t) => {
 
   await waitForHealth(baseUrl, child);
 
-  const oversizedCallbackResponse = await fetch(`${baseUrl}/oauth/velo/callback`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ request: "x".repeat(17 * 1024), api_key: "test" }),
-  });
+  const oversizedCallbackResponse = await fetch(
+    `${baseUrl}/oauth/velo/callback`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request: "x".repeat(17 * 1024), api_key: "test" }),
+    },
+  );
   assert.equal(oversizedCallbackResponse.status, 413);
 
   const protectedMetadataResponse = await fetch(
@@ -125,7 +128,10 @@ test("remote OAuth and MCP flow", async (t) => {
     redirect: "manual",
   });
   assert.equal(rejectedRedirectResponse.status, 400);
-  assert.equal((await rejectedRedirectResponse.json()).error, "invalid_request");
+  assert.equal(
+    (await rejectedRedirectResponse.json()).error,
+    "invalid_request",
+  );
 
   const authorizeResponse = await fetch(authorizeUrl, {
     redirect: "manual",
@@ -237,7 +243,10 @@ test("remote OAuth and MCP flow", async (t) => {
   const sessionId = initializeResponse.headers.get("mcp-session-id");
   assert.ok(sessionId);
   const initializeResult = await initializeResponse.json();
-  assert.equal(initializeResult.result.serverInfo.name, "CDT Express MCP Server");
+  assert.equal(
+    initializeResult.result.serverInfo.name,
+    "CDT Express MCP Server",
+  );
 
   const refreshResponse = await fetch(`${baseUrl}/token`, {
     method: "POST",
@@ -273,7 +282,9 @@ test("remote OAuth and MCP flow", async (t) => {
   const listResult = await listResponse.json();
   assert.ok(listResult.result.tools.length > 10);
   assert.ok(
-    listResult.result.tools.some((tool) => tool.name === "get_metrics_definition"),
+    listResult.result.tools.some(
+      (tool) => tool.name === "get_metrics_definition",
+    ),
   );
 
   const acceptedLargeBody = await fetch(resourceUrl, {

@@ -21,14 +21,10 @@ const metadata = {
 
 test("CIMD defaults to any safely retrievable HTTPS client", async () => {
   assert.equal(DEFAULT_CIMD_ORIGIN_POLICY, "*");
-  const client = await resolveCimdClient(
-    clientId,
-    undefined,
-    async (url) => {
-      assert.equal(url.href, clientId);
-      return metadata;
-    },
-  );
+  const client = await resolveCimdClient(clientId, undefined, async (url) => {
+    assert.equal(url.href, clientId);
+    return metadata;
+  });
   assert.equal(client?.client_id, clientId);
   assert.deepEqual(client?.redirect_uris, metadata.redirect_uris);
 });
@@ -53,8 +49,12 @@ test("CIMD rejects mismatched metadata identities", async () => {
 test("CIMD URLs require credential-free HTTPS URLs with a path", () => {
   assert.throws(() => validateCimdUrl("http://client.example/client.json"));
   assert.throws(() => validateCimdUrl("https://client.example/"));
-  assert.throws(() => validateCimdUrl("https://user:pass@client.example/client.json"));
-  assert.throws(() => validateCimdUrl("https://client.example/client.json#fragment"));
+  assert.throws(() =>
+    validateCimdUrl("https://user:pass@client.example/client.json"),
+  );
+  assert.throws(() =>
+    validateCimdUrl("https://client.example/client.json#fragment"),
+  );
 });
 
 test("CIMD SSRF protection rejects non-public address ranges", async () => {
