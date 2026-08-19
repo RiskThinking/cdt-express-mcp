@@ -19,12 +19,13 @@ jobs:
         run: |
           TAG_VER="${GITHUB_REF_NAME#v}"
           PKG_VER="$(jq -r '.version' package.json)"
+          SERVER_VER="$(jq -r '.version' server.json)"
 
-          if [ "$TAG_VER" != "$PKG_VER" ]; then
-            echo "❌ Version mismatch between tag ($TAG_VER) and package ($PKG_VER)"
+          if [ "$TAG_VER" != "$PKG_VER" ] || [ "$TAG_VER" != "$SERVER_VER" ]; then
+            echo "❌ Version mismatch: tag=$TAG_VER package.json=$PKG_VER server.json=$SERVER_VER"
             exit 1
           else
-            echo "✅ Version ($TAG_VER) is consistent with package.json"
+            echo "✅ Version ($TAG_VER) is consistent across release metadata"
           fi
 
       - uses: actions/setup-node@v6
@@ -56,7 +57,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Version: $VERSION"
 
-          # update server.json with the version, sha256, and download url (identifier)
+          # Add the release-specific MCPB record to the valid remote-only source file.
           SHA256=$(sha256sum cdt-express.mcpb | awk '{print $1}')
           echo "Calculated SHA256: $SHA256"
 
@@ -65,15 +66,22 @@ jobs:
 
           jq --arg ver "$VERSION" --arg sha "$SHA256" --arg url "$DOWNLOAD_URL" \
             '.version = $ver |
-             .packages[0].version = $ver |
-             .packages[0].fileSha256 = $sha |
-             .packages[0].identifier = $url' \
+             .packages = [{
+               "registryType": "mcpb",
+               "identifier": $url,
+               "version": $ver,
+               "fileSha256": $sha,
+               "transport": {"type": "stdio"}
+             }]' \
             server.json > server.tmp.json
 
           mv server.tmp.json server.json
 
           echo "Updated server.json:"
           cat server.json
+
+      - name: Validate release metadata
+        run: ./mcp-publisher validate
 
       - name: Publish to MCP Registry
         run: ./mcp-publisher publish

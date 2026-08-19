@@ -7,12 +7,11 @@
   "mcpName": "io.github.RiskThinking/cdt-express-mcp",
   "scripts": {
     "build": "tsc",
+    "build:mcpb": "node scripts/build-mcpb.mjs",
     "start:http": "node build/http.js",
     "dev:http": "npm run build && node --env-file-if-exists=.env build/http.js",
-    "smoke": "CDT_API_KEY=smoke node build/index.js < /dev/null",
-    "sync-manifest": "node -e \"const fs=require('fs'); const pkg=require('./package.json'); const m=JSON.parse(fs.readFileSync('manifest.json')); m.version=pkg.version; fs.writeFileSync('manifest.json', JSON.stringify(m, null, 2));\"",
-    "pack": "npm run build && npm run sync-manifest && npm prune --production && npx -y @anthropic-ai/mcpb pack . cdt-express.mcpb && git checkout manifest.json",
-    "pack:dev": "npm run pack && npm i",
+    "smoke": "node scripts/smoke-mcp.mjs",
+    "pack": "npm run build:mcpb",
     "test": "npm run build && node --test test/*.test.js"
   },
   "keywords": [
@@ -38,8 +37,13 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.5",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "tmp": "^0.2.6"
   }
 }

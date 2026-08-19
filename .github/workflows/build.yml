@@ -20,9 +20,16 @@ jobs:
 
       - run: npm run pack
 
-      # `tsc` cannot catch a module specifier that only fails to resolve at
-      # runtime, so prove the packaged server actually starts and lists tools.
+      - name: Verify lean MCPB contents
+        run: |
+          unzip -Z1 cdt-express.mcpb | sort > mcpb-files.txt
+          diff -u <(printf '%s\n' LICENSE build/index.js manifest.json) mcpb-files.txt
+          test "$(stat -c%s cdt-express.mcpb)" -lt 1000000
+
+      # Prove both entry points complete an MCP handshake and list tools.
       - run: npm run smoke
+      - run: unzip -p cdt-express.mcpb build/index.js > /tmp/cdt-express-mcpb.js
+      - run: npm run smoke -- /tmp/cdt-express-mcpb.js
 
   # auto rebase all dependabot PRs when `main` is updated
   dependabot-rebase:
