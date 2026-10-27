@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+      DOCKER_BUILD_SUMMARY: "false"
       IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPOSITORY }}/${{ secrets.GCP_CLOUD_RUN_SERVICE }}
 
     steps:
