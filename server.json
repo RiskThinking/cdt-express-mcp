@@ -3,7 +3,7 @@
   "name": "io.github.RiskThinking/cdt-express-mcp",
   "title": "CDT Express by Riskthinking.AI",
   "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "repository": {
     "url": "https://github.com/RiskThinking/cdt-express-mcp",
     "source": "github"

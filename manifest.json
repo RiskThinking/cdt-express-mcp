@@ -12,7 +12,9 @@
     "entry_point": "build/index.mjs",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/build/index.mjs"],
+      "args": [
+        "${__dirname}/build/index.mjs"
+      ],
       "env": {
         "CDT_API_KEY": "${user_config.api_key}"
       }
@@ -27,7 +29,7 @@
       "sensitive": true
     }
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "documentation": "https://github.com/RiskThinking/cdt-express-mcp#readme",
   "support": "https://github.com/RiskThinking/cdt-express-mcp/issues"
 }
