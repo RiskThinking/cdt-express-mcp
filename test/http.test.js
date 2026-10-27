@@ -40,6 +40,10 @@ test("remote OAuth and MCP flow", async (t) => {
       PORT: String(port),
       HOST: "127.0.0.1",
       MCP_PUBLIC_BASE_URL: baseUrl,
+      MCP_REDIS_URL: process.env.MCP_TEST_REDIS_URL || "",
+      MCP_REDIS_HOSTNAME: "",
+      MCP_REDIS_PASSWORD: "",
+      MCP_REDIS_CLUSTER: process.env.MCP_TEST_REDIS_CLUSTER || "false",
       MCP_OAUTH_SECRET: "test-only-secret-that-is-at-least-32-characters",
       MCP_TRUST_PROXY_HOPS: "1",
       VELO_AUTHORIZE_URL: `${baseUrl}/fake-velo-authorize`,
@@ -68,6 +72,28 @@ test("remote OAuth and MCP flow", async (t) => {
     },
   );
   assert.equal(oversizedCallbackResponse.status, 413);
+  assert.deepEqual(await oversizedCallbackResponse.json(), {
+    error: "Request body is too large",
+  });
+  assert.equal(
+    oversizedCallbackResponse.headers.get("cache-control"),
+    "no-store",
+  );
+  assert.equal(
+    oversizedCallbackResponse.headers.get("referrer-policy"),
+    "no-referrer",
+  );
+  assert.equal(oversizedCallbackResponse.headers.get("x-powered-by"), null);
+
+  const malformedResponse = await fetch(`${baseUrl}/oauth/velo/callback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: '{"api_key":"do-not-echo-this-key",',
+  });
+  assert.equal(malformedResponse.status, 400);
+  assert.deepEqual(await malformedResponse.json(), {
+    error: "Malformed request body",
+  });
 
   const protectedMetadataResponse = await fetch(
     `${baseUrl}/.well-known/oauth-protected-resource/mcp`,
@@ -82,6 +108,7 @@ test("remote OAuth and MCP flow", async (t) => {
   ).then((response) => response.json());
   assert.equal(oauthMetadata.issuer, `${baseUrl}/`);
   assert.equal(oauthMetadata.registration_endpoint, `${baseUrl}/register`);
+  assert.equal(oauthMetadata.revocation_endpoint, `${baseUrl}/revoke`);
   assert.deepEqual(oauthMetadata.code_challenge_methods_supported, ["S256"]);
   assert.equal(oauthMetadata.client_id_metadata_document_supported, true);
 
@@ -240,8 +267,7 @@ test("remote OAuth and MCP flow", async (t) => {
     }),
   });
   assert.equal(initializeResponse.status, 200, stderr);
-  const sessionId = initializeResponse.headers.get("mcp-session-id");
-  assert.ok(sessionId);
+  assert.equal(initializeResponse.headers.get("mcp-session-id"), null);
   const initializeResult = await initializeResponse.json();
   assert.equal(
     initializeResult.result.serverInfo.name,
@@ -270,7 +296,7 @@ test("remote OAuth and MCP flow", async (t) => {
 
   const listResponse = await fetch(resourceUrl, {
     method: "POST",
-    headers: { ...refreshedMcpHeaders, "Mcp-Session-Id": sessionId },
+    headers: refreshedMcpHeaders,
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 2,
@@ -287,6 +313,30 @@ test("remote OAuth and MCP flow", async (t) => {
     ),
   );
 
+  // No initialize/session history is required for an independent tool call.
+  const glossaryResponse = await fetch(resourceUrl, {
+    method: "POST",
+    headers: { ...refreshedMcpHeaders, "MCP-Protocol-Version": "2025-11-25" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: { name: "get_metrics_definition", arguments: {} },
+    }),
+  });
+  assert.equal(glossaryResponse.status, 200);
+  const glossary = await glossaryResponse.json();
+  assert.notEqual(glossary.result.isError, true);
+  assert.match(glossary.result.content[0].text, /dcr_score/);
+  for (const method of ["GET", "DELETE"]) {
+    const response = await fetch(resourceUrl, {
+      method,
+      headers: refreshedMcpHeaders,
+    });
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("allow"), "POST");
+  }
+
   const acceptedLargeBody = await fetch(resourceUrl, {
     method: "POST",
     headers: refreshedMcpHeaders,
@@ -300,4 +350,20 @@ test("remote OAuth and MCP flow", async (t) => {
     body: JSON.stringify({ padding: "x".repeat(1024 * 1024) }),
   });
   assert.equal(rejectedLargeBody.status, 413);
+
+  const revokeResponse = await fetch(`${baseUrl}/revoke`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: client.client_id,
+      token: refreshedTokens.refresh_token,
+    }),
+  });
+  assert.equal(revokeResponse.status, 200);
+  const revokedRequest = await fetch(resourceUrl, {
+    method: "POST",
+    headers: refreshedMcpHeaders,
+    body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/list" }),
+  });
+  assert.equal(revokedRequest.status, 401);
 });

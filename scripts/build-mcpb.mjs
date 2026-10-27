@@ -52,6 +52,9 @@ try {
   const remoteOnlyInputs = [
     "src/http.ts",
     "src/oauth.ts",
+    "src/oauth-state.ts",
+    "node_modules/redis/",
+    "node_modules/@redis/",
     "src/cimd.ts",
     "node_modules/express/",
     "node_modules/ipaddr.js/",

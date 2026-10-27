@@ -7,6 +7,7 @@ import {
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import {
   InvalidGrantError,
+  TemporarilyUnavailableError,
   InvalidScopeError,
   InvalidTargetError,
   InvalidTokenError,
@@ -22,6 +23,8 @@ import type {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { Response } from "express";
+
+import { MemoryOAuthStateStore, type OAuthStateStore } from "./oauth-state.js";
 
 import { resolveCimdClient } from "./cimd.js";
 
@@ -57,6 +60,7 @@ type CodeClaims = AuthorizationClaims & {
 };
 
 type TokenClaims = {
+  grantExpiresAt: number;
   apiKey: string;
   authorizationId: string;
   clientId: string;
@@ -188,15 +192,17 @@ export type OAuthConfig = {
   resourceUrl: URL;
   veloAuthorizeUrl: URL;
   allowedCimdOrigins?: ReadonlySet<string>;
+  stateStore?: OAuthStateStore;
 };
 
 export class VeloOAuthProvider implements OAuthServerProvider {
   readonly clientsStore: OAuthRegisteredClientsStore;
   private readonly sealer: Sealer;
-  private readonly usedAuthorizationCodes = new Map<string, number>();
+  private readonly stateStore: OAuthStateStore;
 
   constructor(private readonly config: OAuthConfig) {
     this.sealer = new Sealer(config.secret);
+    this.stateStore = config.stateStore ?? new MemoryOAuthStateStore();
     this.clientsStore = new SealedClientsStore(
       this.sealer,
       config.allowedCimdOrigins,
@@ -234,6 +240,17 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       },
       AUTHORIZATION_TTL_SECONDS,
     );
+    if (
+      !(await this.stateStore.putPending(
+        "request",
+        this.digest(request),
+        Math.floor(Date.now() / 1000) + AUTHORIZATION_TTL_SECONDS,
+      ))
+    ) {
+      throw new TemporarilyUnavailableError(
+        "Could not create the authorization request. Try again.",
+      );
+    }
     const url = new URL(this.config.veloAuthorizeUrl);
     url.searchParams.set("request", request);
     res.redirect(302, url.href);
@@ -255,13 +272,22 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     };
   }
 
-  completeVeloAuthorization(request: string, apiKey: string): string {
+  async completeVeloAuthorization(
+    request: string,
+    apiKey: string,
+  ): Promise<string> {
     let pending: BaseClaims & AuthorizationClaims;
     try {
       pending = this.sealer.open<AuthorizationClaims>("request", request);
     } catch {
       throw new InvalidGrantError(
         "The authorization request is invalid or expired",
+      );
+    }
+
+    if (!(await this.stateStore.consume("request", this.digest(request)))) {
+      throw new InvalidGrantError(
+        "The authorization request has already been completed",
       );
     }
 
@@ -281,6 +307,17 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       },
       AUTHORIZATION_TTL_SECONDS,
     );
+    if (
+      !(await this.stateStore.putPending(
+        "code",
+        this.digest(code),
+        Math.floor(Date.now() / 1000) + AUTHORIZATION_TTL_SECONDS,
+      ))
+    ) {
+      throw new TemporarilyUnavailableError(
+        "Could not create the authorization code. Connect again.",
+      );
+    }
     const redirect = new URL(pending.redirectUri);
     redirect.searchParams.set("code", code);
     if (pending.state) redirect.searchParams.set("state", pending.state);
@@ -310,14 +347,35 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       );
     }
     this.assertResource(resource?.href ?? code.resource);
-    this.consumeAuthorizationCode(authorizationCode, code.expiresAt);
-    return this.issueTokens({
+    if (
+      !(await this.stateStore.consume("code", this.digest(authorizationCode)))
+    ) {
+      throw new InvalidGrantError(
+        "The authorization code has already been used",
+      );
+    }
+    const grantExpiresAt =
+      Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
+    const tokens = this.issueTokens({
+      grantExpiresAt,
       apiKey: code.apiKey,
       authorizationId: code.authorizationId,
       clientId: code.clientId,
       scopes: code.scopes,
       resource: code.resource,
     });
+    if (
+      !(await this.stateStore.createGrant(
+        code.authorizationId,
+        this.digest(tokens.refresh_token!),
+        grantExpiresAt,
+      ))
+    ) {
+      throw new InvalidGrantError(
+        "The authorization has already been redeemed",
+      );
+    }
+    return tokens;
   }
 
   async exchangeRefreshToken(
@@ -332,6 +390,14 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     } catch {
       throw new InvalidGrantError("The refresh token is invalid or expired");
     }
+    if (
+      !Number.isFinite(claims.grantExpiresAt) ||
+      claims.grantExpiresAt <= Date.now() / 1000
+    ) {
+      throw new InvalidGrantError(
+        "The authorization expired. Reconnect your account.",
+      );
+    }
     if (claims.clientId !== client.client_id) {
       throw new InvalidGrantError(
         "The refresh token belongs to another client",
@@ -344,7 +410,27 @@ export class VeloOAuthProvider implements OAuthServerProvider {
         "Refresh scopes may not exceed granted scopes",
       );
     }
-    return this.issueTokens({ ...claims, scopes: nextScopes });
+    // Copy only token claims: never carry the old token's type/expiry forward.
+    const tokens = this.issueTokens({
+      apiKey: claims.apiKey,
+      authorizationId: claims.authorizationId,
+      clientId: claims.clientId,
+      scopes: nextScopes,
+      resource: claims.resource,
+      grantExpiresAt: claims.grantExpiresAt,
+    });
+    if (
+      !(await this.stateStore.rotateGrant(
+        claims.authorizationId,
+        this.digest(refreshToken),
+        this.digest(tokens.refresh_token!),
+      ))
+    ) {
+      throw new InvalidGrantError(
+        "The refresh token was reused, revoked, or expired. Reconnect your account.",
+      );
+    }
+    return tokens;
   }
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
@@ -354,6 +440,11 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       this.assertResource(claims.resource);
     } catch {
       throw new InvalidTokenError("The access token is invalid or expired");
+    }
+    if (!(await this.stateStore.isGrantActive(claims.authorizationId))) {
+      throw new InvalidTokenError(
+        "The authorization was revoked or expired. Reconnect your account.",
+      );
     }
     return {
       token,
@@ -391,38 +482,43 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     }
   }
 
-  private consumeAuthorizationCode(code: string, expiresAt?: number) {
-    const now = Date.now() / 1000;
-    for (const [digest, expiry] of this.usedAuthorizationCodes) {
-      if (expiry <= now) this.usedAuthorizationCodes.delete(digest);
+  async revokeToken(
+    client: OAuthClientInformationFull,
+    request: OAuthTokenRevocationRequest,
+  ): Promise<void> {
+    let claims: BaseClaims & TokenClaims;
+    try {
+      const kind = request.token.startsWith("cdt_refresh_")
+        ? "refresh"
+        : "access";
+      claims = this.sealer.open<TokenClaims>(kind, request.token);
+      if (
+        claims.clientId !== client.client_id ||
+        claims.resource !== this.config.resourceUrl.href
+      )
+        return;
+    } catch {
+      // RFC 7009: invalid or already-revoked tokens still produce success.
+      return;
     }
+    await this.stateStore.revokeGrant(claims.authorizationId);
+  }
 
-    const digest = createHash("sha256").update(code).digest("base64url");
-    if (this.usedAuthorizationCodes.has(digest)) {
-      throw new InvalidGrantError(
-        "The authorization code has already been used",
-      );
-    }
-    this.usedAuthorizationCodes.set(
-      digest,
-      expiresAt ?? now + AUTHORIZATION_TTL_SECONDS,
-    );
+  private digest(value: string) {
+    return createHash("sha256").update(value).digest("base64url");
   }
 
   private issueTokens(claims: TokenClaims): OAuthTokens {
+    const remaining = Math.max(
+      1,
+      claims.grantExpiresAt - Math.floor(Date.now() / 1000),
+    );
+    const accessTtl = Math.min(ACCESS_TOKEN_TTL_SECONDS, remaining);
     return {
-      access_token: this.sealer.seal(
-        "access",
-        claims,
-        ACCESS_TOKEN_TTL_SECONDS,
-      ),
+      access_token: this.sealer.seal("access", claims, accessTtl),
       token_type: "Bearer",
-      expires_in: ACCESS_TOKEN_TTL_SECONDS,
-      refresh_token: this.sealer.seal(
-        "refresh",
-        claims,
-        REFRESH_TOKEN_TTL_SECONDS,
-      ),
+      expires_in: accessTtl,
+      refresh_token: this.sealer.seal("refresh", claims, remaining),
       scope: claims.scopes.join(" "),
     };
   }

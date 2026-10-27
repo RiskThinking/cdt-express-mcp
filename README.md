@@ -39,17 +39,15 @@ The existing MCPB/stdio package remains available for local-only use.
 ```bash
 cp .env.example .env
 # Set MCP_OAUTH_SECRET in .env to the output of: openssl rand -base64 48
+# Set MCP_REDIS_URL to your Redis connection URL for remote hosting.
 npm ci
-npm run build
-npm run start:http
+npm run dev:http
 ```
 
-Alternatively, build and run the included `Dockerfile`. Production requires
-HTTPS at `MCP_PUBLIC_BASE_URL`. The [Cloud Run disaster-recovery
-guide](docs/cloud-run-deployment.md) covers WIF/IAM provisioning, GitHub
-configuration, and Cloudflare DNS. Configure the `visual-eyes` deployment with
-`CDT_MCP_URL=https://mcp.riskthinking.ai/mcp` so its `/mcp/authorize` route can
-complete the authenticated hand-off.
+Alternatively, build and run the included `Dockerfile`. Remote hosting requires
+HTTPS at `MCP_PUBLIC_BASE_URL` and a compatible authorization service at
+`VELO_AUTHORIZE_URL`. See [hosting configuration](docs/cloud-run-deployment.md)
+and [OAuth state management](docs/oauth-state.md).
 
 The HTTP server provides:
 
@@ -61,18 +59,69 @@ The HTTP server provides:
 - Client ID Metadata Documents (CIMD) for any standards-compliant HTTPS client,
   with public-IP-pinned fetching, redirect rejection, strict size/time limits,
   and dynamic client registration for backward compatibility.
-- One-hour encrypted access tokens and 30-day encrypted refresh tokens, with
-  no credential database required.
+- Encrypted access tokens lasting up to one hour, rotating refresh tokens,
+  and an absolute 30-day authorization lifetime. Redis stores only grant IDs
+  and token digests for replay protection, reuse detection, and revocation.
 - Exact callback validation against each client's registered or fetched
-  metadata, bearer checks on every MCP request, per-authorization session
-  binding, host/origin validation, and bounded request bodies.
+  metadata, bearer checks on every MCP request, host/origin validation, and
+  bounded request bodies. MCP requests do not retain transport sessions.
 
-`MCP_OAUTH_SECRET` is the only durable secret and must be shared by all remote
-MCP instances. Rotating it invalidates existing client registrations and
-tokens. The current TypeScript SDK negotiates MCP through `2025-11-25`, which
-the major hosted clients currently use. The endpoint is structured for the
-stateless `2026-07-28` transport and can switch when the stable TypeScript SDK
-exposes that protocol revision.
+Remote hosting requires `MCP_OAUTH_SECRET` and a Redis URL or hostname/password.
+All instances must share the same secret and Redis database. Rotating the OAuth
+secret invalidates client registrations and tokens. Each MCP POST authenticates
+independently; the transport does not retain sessions.
+
+## Example prompts
+
+- "Use CDT Express to explain dcr_score and cvar_95 using its metric glossary."
+- "Retrieve extreme-heat exposure (hot_days) for Toronto at latitude 43.6532,
+  longitude -79.3832, pathway ssp245, horizon 2050."
+- "Search for Microsoft, return up to three companies, and retrieve climate
+  scores for a returned company under ssp245 in 2050."
+
+A VELO account with CDT Express access and sufficient quota is required. All
+40 tools are read-only; API calls may consume account quota. Narrow filters and
+paginated tools keep responses small. Bulk tools return CSV across at most 30
+pages and time out after 30 seconds. Treat climate projections as estimates
+with assumptions and uncertainty.
+
+## Privacy Policy
+
+The connector processes the following data. Publishers must provide a privacy
+policy covering their deployment and connected services; this technical overview
+does not replace that policy.
+
+- Tool arguments, including coordinates, search terms, and entity IDs, are sent
+  to Riskthinking.AI's API. Results are returned to the connected AI app and are
+  subject to that app's data handling. This server does not request the whole
+  conversation, and does not persist tool arguments or results in a database.
+- Remote sign-in occurs in VELO. The account's API key travels to this server
+  through the HTTPS callback and is encrypted within opaque authorization codes
+  and tokens. It is not returned as plaintext to the AI app. Redis contains only
+  grant IDs and digests; see the [record lifetimes](docs/oauth-state.md).
+- Local MCPB users supply an API key through the client's sensitive configuration;
+  the local process uses it to call the API directly.
+- Hosting providers and connected services may maintain their own logs and
+  records, subject to their respective privacy and retention policies.
+
+## Support and troubleshooting
+
+Report bugs through [GitHub issues](https://github.com/RiskThinking/cdt-express-mcp/issues).
+Include the client, server version, tool name, and sanitized error/status.
+Never include API keys, OAuth tokens, authorization URLs, or private data.
+
+- **Sign-in expired:** restart Connect and approve consent within five minutes.
+- **401 after connecting:** reconnect; the authorization may have expired, been
+  revoked, or been invalidated by token reuse or a server-secret rotation.
+- **403 from the API:** confirm your account has access to the requested data.
+- **429:** wait before retrying and check account quota or service rate limits.
+- **Timeout or large output:** narrow the location, hazards, horizon, or entity
+  filters, and use paginated tools rather than bulk tools.
+- **Temporary authorization outage:** retry later. Operators should check Redis
+  health and network connectivity; the server denies access when storage is down.
+
+For directory publishing, use the
+[connector publishing checklist](docs/anthropic-directory-submission.md).
 
 ## MCPB Extension Installation
 

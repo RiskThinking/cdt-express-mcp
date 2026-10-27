@@ -11,6 +11,7 @@ export const PAGINATION_SCHEMA = z.object({
   cursor: z.string().optional().describe("Pagination cursor"),
   limit: z
     .number()
+    .int()
     .min(1)
     .max(100)
     .optional()
@@ -50,7 +51,7 @@ const CLIMATE_PARAMS_SCHEMA = z.object({
     .default([METRICS[0]])
     .optional()
     .describe(
-      "Metrics to include. Note: If the user asks for financial damage or CVaR, you MUST explicitly include 'expected_impact' or 'cvar_95' in this array, otherwise it defaults to dcr_score. For definitions, refer to resource: file:///glossary/metrics",
+      "Metrics to include. Note: If the user asks for financial damage or CVaR, you MUST explicitly include 'expected_impact' or 'cvar_95' in this array, otherwise it defaults to dcr_score. For definitions, refer to resource: file:///glossary/metrics.txt",
     ),
 });
 
@@ -109,7 +110,7 @@ export const METRICS_SCHEMA = GEO_POINT_SCHEMA.extend({
   statistics: z
     .array(z.enum(STATISTICS))
     .optional()
-    .describe("Defaults: min, max, mean"),
+    .describe("Defaults: minimum, maximum, mean"),
   return_periods: z
     .array(z.number().min(1).max(1000))
     .optional()
@@ -158,7 +159,7 @@ export const LIST_COMPANIES_SCHEMA = PAGINATION_SCHEMA.extend(
 });
 
 export const SEARCH_COMPANIES_SCHEMA = z.object({
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
   name: z.string().optional(),
   isin_code: z.string().optional(),
   stock_ticker: z.string().optional(),
@@ -198,7 +199,7 @@ export const COMPANY_CLUSTERS_SCHEMA = COMPANY_ID_SCHEMA.extend(
 
 // Markets/Indices API
 export const SEARCH_MARKET_GROUPS_SCHEMA = z.object({
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
   name: z.string().optional(),
 });
 
@@ -207,7 +208,7 @@ export const LIST_GROUP_CONSTITUENTS_SCHEMA = GROUP_ID_SCHEMA.extend(
 );
 
 export const SEARCH_MARKET_INDEXES_SCHEMA = z.object({
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
   name: z.string().optional(),
 });
 

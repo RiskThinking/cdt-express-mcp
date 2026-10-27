@@ -57,6 +57,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_metrics_definition",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       title: "Get Climate Metric Definitions",
       description: `Returns the official CDT Express definitions for metrics: ${METRICS.join(", ")}.`,
     },
@@ -74,6 +80,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_climate_metrics_exposure",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get exposure metrics for a location",
       description:
         "Returns raw meteorological hazard statistics (e.g., days of extreme heat, flood depth). Use this when asked about weather, temperature, or physical phenomena.",
@@ -89,6 +101,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_climate_metrics_impact",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get impact metrics for a location",
       description:
         "Returns financial damage estimates. Use this when asked about financial risk, damage costs, or expected financial impact.",
@@ -104,6 +122,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_climate_metrics_probability_adjusted_impact",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get probability-adjusted impact metrics",
       description:
         "Returns impact metrics with probability-adjusted return periods.",
@@ -119,6 +143,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_climate_distribution_exposure",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get exposure distribution for a location",
       description:
         "Returns the full exposure distribution (quantile values) for a single risk factor.",
@@ -134,6 +164,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_climate_distribution_impact",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get impact distribution for a location",
       description:
         "Returns the full impact distribution (quantile values) for a single risk factor.",
@@ -150,6 +186,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List physical assets",
       description:
         "Paginate through physical asset data with optional filters for country and asset type.",
@@ -165,6 +207,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all physical assets",
       description:
         "List all physical assets exhaustively with optional filters for country and asset type. Response is a CSV with header row and value rows.",
@@ -181,6 +229,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_asset",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get asset details",
       description: "Retrieve details for a specific physical asset by ID.",
       inputSchema: ASSET_ID_SCHEMA,
@@ -195,6 +249,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "search_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Search assets",
       description:
         "Search for assets by name/address within a specific scope (public, organization, or company).",
@@ -210,6 +270,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_asset_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get asset climate risk scores",
       description:
         "Retrieve physical risk analytics (scores) for a specific asset.",
@@ -226,6 +292,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_companies",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List companies",
       description:
         "Paginate through all public or organization-specific companies.",
@@ -241,9 +313,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_companies",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all companies",
       description:
-        "List all public or organization-specific companies exhaustively. Response is a CSV with header row and value rows.",
+        "List all public or organization-specific companies across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: LIST_COMPANIES_SCHEMA,
     },
     getCallback(
@@ -257,6 +335,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "search_companies",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Search companies",
       description: "Search for companies by name, ISIN, ticker, or sector.",
       inputSchema: SEARCH_COMPANIES_SCHEMA,
@@ -271,6 +355,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_company",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get company details",
       description: "Retrieve details for a specific company by ID.",
       inputSchema: COMPANY_ID_SCHEMA,
@@ -285,6 +375,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_company_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get company climate scores",
       description: "Get aggregated physical risk analytics for a company.",
       inputSchema: COMPANY_SCORES_SCHEMA,
@@ -299,6 +395,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_company_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get company assets",
       description:
         "Paginate through physical assets owned by a specific company.",
@@ -314,9 +416,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_all_company_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get all company assets",
       description:
-        "List all physical assets owned by a specific company exhaustively. Response is a CSV with header row and value rows.",
+        "List all physical assets owned by a specific company across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: COMPANY_ASSETS_SCHEMA,
     },
     getCallback(
@@ -330,6 +438,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_company_subsidiaries",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get company subsidiaries",
       description: "Retrieve list of subsidiaries for a company.",
       inputSchema: COMPANY_ID_SCHEMA,
@@ -344,6 +458,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_company_geo_clusters",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get company geo clusters",
       description:
         "Get clustered asset locations for geospatial mapping at a specific zoom level.",
@@ -360,6 +480,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_market_groups",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List market groups",
       description: "Paginate through market index groups.",
       inputSchema: PAGINATION_SCHEMA,
@@ -374,9 +500,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_market_groups",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all market groups",
       description:
-        "List all market index groups exhaustively. Response is a CSV with header row and value rows.",
+        "List all market index groups across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: PAGINATION_SCHEMA,
     },
     getCallback(
@@ -390,6 +522,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_market_group",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get market group",
       description: "Get details of a specific market index group.",
       inputSchema: GROUP_ID_SCHEMA,
@@ -404,6 +542,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "search_market_groups",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Search market groups",
       description: "Search for market index groups by name.",
       inputSchema: SEARCH_MARKET_GROUPS_SCHEMA,
@@ -418,6 +562,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_market_group_constituents",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List market group constituents",
       description:
         "Get the list of market indexes that belong to a specific group.",
@@ -433,9 +583,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_market_group_constituents",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all market group constituents",
       description:
-        "List all market indexes that belong to a specific group exhaustively. Response is a CSV with header row and value rows.",
+        "List all market indexes that belong to a specific group across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: LIST_GROUP_CONSTITUENTS_SCHEMA,
     },
     getCallback(
@@ -449,6 +605,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_market_indexes",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List market indexes",
       description: "Paginate through all market indexes.",
       inputSchema: PAGINATION_SCHEMA,
@@ -463,9 +625,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_market_indexes",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all market indexes",
       description:
-        "List all market indexes exhaustively. Response is a CSV with header row and value rows.",
+        "List all market indexes across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: PAGINATION_SCHEMA,
     },
     getCallback(
@@ -479,6 +647,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_market_index",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get market index",
       description: "Get details of a specific market index.",
       inputSchema: INDEX_ID_SCHEMA,
@@ -493,6 +667,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "search_market_indexes",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Search market indexes",
       description: "Search for market indexes by name.",
       inputSchema: SEARCH_MARKET_INDEXES_SCHEMA,
@@ -507,6 +687,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_market_index_companies",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List market index companies",
       description: "Paginate through companies within a specific market index.",
       inputSchema: INDEX_COMPANIES_SCHEMA,
@@ -521,9 +707,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_market_index_companies",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all market index companies",
       description:
-        "List all companies within a specific market index exhaustively.",
+        "List all companies within a specific market index across up to 30 pages. Prefer the paginated tool for small samples.",
       inputSchema: INDEX_COMPANIES_SCHEMA,
     },
     getCallback(
@@ -537,6 +729,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_market_index_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List market index assets",
       description:
         "Paginate through physical assets owned by companies in a market index.",
@@ -552,9 +750,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "list_all_market_index_assets",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "List all market index assets",
       description:
-        "List all physical assets owned by companies in a market index exhaustively.",
+        "List all physical assets owned by companies in a market index across up to 30 pages. Prefer the paginated tool for small samples.",
       inputSchema: INDEX_ASSETS_SCHEMA,
     },
     getCallback(
@@ -568,6 +772,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_market_index_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get market index climate scores",
       description:
         "Get the aggregated physical risk score for the entire market index.",
@@ -583,6 +793,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_market_index_companies_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get market index companies climate scores",
       description:
         "Get physical risk scores for companies within an index. Supports pagination and sorting (e.g., sort_by a specific metric like 'expected_impact' descending to instantly find the highest risk entities).",
@@ -598,9 +814,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_all_market_index_companies_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get all market index companies climate scores",
       description:
-        "Get all physical risk scores for each company within the market index exhaustively. Response is a CSV with header row and value rows.",
+        "Get all physical risk scores for each company within the market index across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: INDEX_COMPANIES_SCORES_SCHEMA,
     },
     getCallback(
@@ -614,6 +836,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_market_index_assets_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get market index assets climate scores",
       description:
         "Get physical risk scores for individual assets within an index. Use sort_by (e.g., 'expected_impact' descending) and limit to quickly find the most vulnerable assets without exhaustive fetching.",
@@ -629,9 +857,15 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_all_market_index_assets_climate_scores",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get all market index assets climate scores",
       description:
-        "Get all physical risk scores for individual assets within the market index exhaustively. Response is a CSV with header row and value rows.",
+        "Get all physical risk scores for individual assets within the market index across up to 30 pages. Prefer the paginated tool for small samples. Response is a CSV with header row and value rows.",
       inputSchema: INDEX_ASSETS_SCORES_SCHEMA,
     },
     getCallback(
@@ -645,6 +879,12 @@ export const getServer = (apiKey: string) => {
   server.registerTool(
     "get_market_index_geo_clusters",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Get market index geo clusters",
       description:
         "Get clustered asset locations for the market index for geospatial mapping.",

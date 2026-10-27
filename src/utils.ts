@@ -41,7 +41,13 @@ export const toCSV = (results: unknown[]): string => {
     return "";
   }
 
-  const headers = Object.keys(results[0]);
+  const rows = results.map((row) => {
+    if (typeof row !== "object" || row === null || Array.isArray(row)) {
+      throw new Error("Expected API results to contain objects");
+    }
+    return row as Record<string, unknown>;
+  });
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
 
   const escapeValue = (value: unknown): string => {
     if (value === null || value === undefined) {
@@ -50,21 +56,22 @@ export const toCSV = (results: unknown[]): string => {
 
     const stringValue = String(value);
 
-    if (/[",\n]/.test(stringValue)) {
+    if (/[",\r\n]/.test(stringValue)) {
       return `"${stringValue.replace(/"/g, '""')}"`;
     }
     return stringValue;
   };
 
-  const headerRow = headers.join(",");
-  const rows = results.map((row) =>
+  const headerRow = headers.map(escapeValue).join(",");
+  const csvRows = rows.map((row) =>
     headers.map((header) => escapeValue(row[header])).join(","),
   );
 
-  return [headerRow, ...rows].join("\n");
+  return [headerRow, ...csvRows].join("\n");
 };
 
 const MAX_EXHAUSTIVE_FETCH_PAGES = 30;
+class ApiRequestError extends Error {}
 
 const _fetch = async (
   endpoint: string,
@@ -73,15 +80,19 @@ const _fetch = async (
   options: {
     exhaustive?: boolean;
     format?: "json" | "csv";
-  },
+  } = {},
 ) => {
   const _params = new URLSearchParams(params); // clone the params for pagination cursor change
   let aggResults: unknown[] = [];
   let pagesFetched = 0;
 
+  // Bound the whole operation, including pagination and response-body reads.
+  const signal = AbortSignal.timeout(30_000);
   try {
     while (true) {
       const response = await fetch(`${endpoint}?${_params}`, {
+        signal,
+        redirect: "error",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           Accept: "application/json",
@@ -90,19 +101,20 @@ const _fetch = async (
       });
 
       if (!response.ok) {
-        const body = await response.text();
-        // A bodyless gateway rejection (e.g. a 401 from the edge) leaves these
-        // headers as the only diagnostic, so keep them when present.
-        const trace = ["www-authenticate", "cf-ray", "x-request-id"]
-          .flatMap((header) => {
-            const value = response.headers.get(header);
-            return value ? [`${header}=${value}`] : [];
-          })
-          .join(" ");
-        throw new Error(
-          `API Error ${response.status} ${response.statusText}: ${
-            body.slice(0, 500) || "(empty body)"
-          }${trace && ` [${trace}]`}`,
+        // Do not reflect arbitrary upstream error bodies or headers to the model.
+        await response.body?.cancel();
+        const advice =
+          response.status === 401
+            ? "Reconnect your account or check your CDT Express API key."
+            : response.status === 403
+              ? "Your account may not have access to this data. Check your CDT Express permissions."
+              : response.status === 429
+                ? "The CDT Express rate limit was reached. Wait before trying again."
+                : response.status >= 500
+                  ? "CDT Express is temporarily unavailable. Try again later."
+                  : "Check the tool inputs and try again.";
+        throw new ApiRequestError(
+          `CDT Express returned HTTP ${response.status}. ${advice}`,
         );
       }
 
@@ -151,7 +163,11 @@ const _fetch = async (
       content: [
         {
           type: "text" as const,
-          text: `Request Error: ${error instanceof Error ? error.message : String(error)}`,
+          text: signal.aborted
+            ? "CDT Express timed out after 30 seconds. Narrow your filters or use a paginated tool and try again."
+            : error instanceof ApiRequestError
+              ? error.message
+              : "Could not retrieve CDT Express data. Check your connection and try again; contact support if the problem persists.",
         },
       ],
       isError: true,

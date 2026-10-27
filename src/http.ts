@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { TemporarilyUnavailableError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import {
   createOAuthMetadata,
@@ -8,7 +8,6 @@ import {
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { hostHeaderValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { Request, Response } from "express";
 import express from "express";
 
@@ -17,21 +16,29 @@ import {
   MCP_SCOPE,
   VeloOAuthProvider,
 } from "./oauth.js";
+import {
+  connectRedisOAuthState,
+  MemoryOAuthStateStore,
+} from "./oauth-state.js";
 import { getServer } from "./server.js";
 
 type AuthenticatedRequest = Request & { auth?: AuthInfo };
-type Session = {
-  transport: StreamableHTTPServerTransport;
-  authorizationId: string;
-  lastSeen: number;
-};
-
-const SESSION_IDLE_MS = 60 * 60 * 1000;
-
 const requiredUrl = (name: string, fallback?: string) => {
   const value = process.env[name] || fallback;
   if (!value) throw new Error(`${name} is required`);
-  return new URL(value);
+  const url = new URL(value);
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (
+    (url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
+    url.username ||
+    url.password ||
+    url.hash
+  ) {
+    throw new Error(
+      `${name} must be a credential-free HTTPS URL (HTTP is allowed on loopback for development)`,
+    );
+  }
+  return url;
 };
 
 const getApiKey = (req: AuthenticatedRequest) => {
@@ -42,14 +49,6 @@ const getApiKey = (req: AuthenticatedRequest) => {
   return apiKey.trim();
 };
 
-const getAuthorizationId = (req: AuthenticatedRequest) => {
-  const authorizationId = req.auth?.extra?.authorizationId;
-  if (typeof authorizationId !== "string" || !authorizationId) {
-    throw new Error("Authenticated request has no authorization identity");
-  }
-  return authorizationId;
-};
-
 async function main() {
   const port = Number.parseInt(process.env.PORT || "3000", 10);
   const host = process.env.HOST || "0.0.0.0";
@@ -57,6 +56,11 @@ async function main() {
     "MCP_PUBLIC_BASE_URL",
     `http://localhost:${port}`,
   );
+  if (publicBaseUrl.pathname !== "/" || publicBaseUrl.search) {
+    throw new Error(
+      "MCP_PUBLIC_BASE_URL must be an origin without a path or query",
+    );
+  }
   const resourceUrl = new URL("/mcp", publicBaseUrl);
   const veloAuthorizeUrl = requiredUrl(
     "VELO_AUTHORIZE_URL",
@@ -69,7 +73,27 @@ async function main() {
   const cimdOriginPolicy =
     process.env.MCP_ALLOWED_CIMD_ORIGINS || DEFAULT_CIMD_ORIGIN_POLICY;
 
+  const redisHostname = process.env.MCP_REDIS_HOSTNAME;
+  const redisUrl =
+    process.env.MCP_REDIS_URL ||
+    (redisHostname ? `redis://${redisHostname}` : undefined);
+  const redisCluster = process.env.MCP_REDIS_CLUSTER || "false";
+  if (!["true", "false"].includes(redisCluster))
+    throw new Error("MCP_REDIS_CLUSTER must be true or false");
+  const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
+    publicBaseUrl.hostname,
+  );
+  if (!redisUrl && !isLocal)
+    throw new Error("MCP_REDIS_URL is required for a remote deployment");
+  const stateStore = redisUrl
+    ? await connectRedisOAuthState(redisUrl, {
+        cluster: redisCluster === "true",
+        password: process.env.MCP_REDIS_PASSWORD,
+      })
+    : new MemoryOAuthStateStore();
+
   const provider = new VeloOAuthProvider({
+    stateStore,
     secret,
     issuerUrl: publicBaseUrl,
     resourceUrl,
@@ -104,6 +128,13 @@ async function main() {
     allowedHosts.add("localhost");
   }
   const app = express();
+  app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  });
   const trustProxyHopsValue = process.env.MCP_TRUST_PROXY_HOPS || "0";
   if (!/^\d+$/.test(trustProxyHopsValue)) {
     throw new Error("MCP_TRUST_PROXY_HOPS must be a non-negative integer");
@@ -150,7 +181,7 @@ async function main() {
   app.post(
     "/oauth/velo/callback",
     express.json({ limit: "16kb" }),
-    (req, res) => {
+    async (req, res) => {
       res.setHeader("Cache-Control", "no-store");
       const request = req.body?.request;
       const apiKey = req.body?.api_key;
@@ -163,12 +194,16 @@ async function main() {
         return;
       }
       try {
-        const redirectUrl = provider.completeVeloAuthorization(
+        const redirectUrl = await provider.completeVeloAuthorization(
           request,
           apiKey.trim(),
         );
         res.json({ redirect_url: redirectUrl });
-      } catch {
+      } catch (error) {
+        if (error instanceof TemporarilyUnavailableError) {
+          res.status(503).json({ error: "temporarily_unavailable" });
+          return;
+        }
         res
           .status(400)
           .json({ error: "Authorization request is invalid or expired" });
@@ -198,80 +233,29 @@ async function main() {
     requiredScopes: [MCP_SCOPE],
     resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl),
   });
-  const sessions = new Map<string, Session>();
-
-  const requireSession = (req: AuthenticatedRequest, res: Response) => {
-    const sessionId = req.header("mcp-session-id");
-    const session = sessionId ? sessions.get(sessionId) : undefined;
-    if (!session) {
-      res.status(404).json({
-        jsonrpc: "2.0",
-        error: { code: -32001, message: "MCP session not found" },
-        id: null,
-      });
-      return undefined;
-    }
-    if (session.authorizationId !== getAuthorizationId(req)) {
-      res.status(403).json({
-        jsonrpc: "2.0",
-        error: {
-          code: -32003,
-          message: "MCP session belongs to another authorization",
-        },
-        id: null,
-      });
-      return undefined;
-    }
-    session.lastSeen = Date.now();
-    return session;
-  };
-
+  // Each request gets its own transport and server. Identity and credentials
+  // come from the bearer token on this request, never from a prior session.
   app.post(
     "/mcp",
     authMiddleware,
     express.json({ limit: "1mb" }),
     async (req: AuthenticatedRequest, res: Response) => {
+      const server = getServer(getApiKey(req));
+      res.once("close", () => {
+        void server
+          .close()
+          .catch(() => console.error("MCP request cleanup failed"));
+      });
       try {
-        const sessionId = req.header("mcp-session-id");
-        if (sessionId) {
-          const session = requireSession(req, res);
-          if (session)
-            await session.transport.handleRequest(req, res, req.body);
-          return;
-        }
-        if (!isInitializeRequest(req.body)) {
-          res.status(400).json({
-            jsonrpc: "2.0",
-            error: {
-              code: -32000,
-              message: "Initialize the MCP session first",
-            },
-            id: null,
-          });
-          return;
-        }
-
-        let initializedSessionId: string | undefined;
         const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: randomUUID,
+          sessionIdGenerator: undefined,
           enableJsonResponse: true,
-          onsessioninitialized: (id) => {
-            initializedSessionId = id;
-            sessions.set(id, {
-              transport,
-              authorizationId: getAuthorizationId(req),
-              lastSeen: Date.now(),
-            });
-          },
         });
-        transport.onclose = () => {
-          if (initializedSessionId) sessions.delete(initializedSessionId);
-        };
-        const server = getServer(getApiKey(req));
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
-      } catch (error) {
-        console.error("MCP request failed", error);
+      } catch {
+        // Error objects can carry request headers or credentials.
+        console.error("MCP request failed");
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: "2.0",
@@ -283,49 +267,48 @@ async function main() {
     },
   );
 
-  app.get(
-    "/mcp",
-    authMiddleware,
-    async (req: AuthenticatedRequest, res: Response) => {
-      const session = requireSession(req, res);
-      if (session) await session.transport.handleRequest(req, res);
-    },
-  );
+  // This server has no persistent event stream or transport session to delete.
+  app.all("/mcp", authMiddleware, (_req, res) => {
+    res.setHeader("Allow", "POST");
+    res.status(405).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Method not allowed; use POST" },
+      id: null,
+    });
+  });
 
-  app.delete(
-    "/mcp",
-    authMiddleware,
-    async (req: AuthenticatedRequest, res: Response) => {
-      const sessionId = req.header("mcp-session-id");
-      const session = requireSession(req, res);
-      if (!session) return;
-      await session.transport.handleRequest(req, res);
-      if (sessionId) sessions.delete(sessionId);
+  app.use(
+    (
+      error: unknown,
+      _req: Request,
+      res: Response,
+      next: express.NextFunction,
+    ) => {
+      if (res.headersSent) return next(error);
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? Number(error.status)
+          : 500;
+      res.status(status === 413 ? 413 : status === 400 ? 400 : 500).json({
+        error:
+          status === 413
+            ? "Request body is too large"
+            : status === 400
+              ? "Malformed request body"
+              : "Internal server error",
+      });
     },
   );
-
-  const cleanup = setInterval(
-    () => {
-      const cutoff = Date.now() - SESSION_IDLE_MS;
-      for (const [id, session] of sessions) {
-        if (session.lastSeen < cutoff) {
-          sessions.delete(id);
-          void session.transport.close();
-        }
-      }
-    },
-    10 * 60 * 1000,
-  );
-  cleanup.unref();
 
   const server = app.listen(port, host, () => {
     console.error(`CDT Express MCP listening at ${resourceUrl.href}`);
   });
 
   const shutdown = async () => {
-    clearInterval(cleanup);
-    for (const session of sessions.values()) await session.transport.close();
-    server.close(() => process.exit(0));
+    server.close(async () => {
+      await stateStore.close();
+      process.exit(0);
+    });
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
