@@ -8,8 +8,9 @@ when preparing a listing.
 ## Listing information
 
 - Name and description that accurately explain the connector's capabilities.
-- Remote HTTPS endpoint, public documentation, approved privacy policy,
-  support contact, and approved branding assets.
+- Remote HTTPS endpoint, public documentation, support contact, and approved
+  branding assets.
+- Privacy policy URL: https://riskthinking.ai/privacy-policy.
 - Account, subscription, and permission requirements.
 - Read-only access classification and any API quota implications.
 - Reviewer credentials and sample data, supplied privately through the portal.

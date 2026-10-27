@@ -77,6 +77,8 @@ URLs, and private data before sharing. More detailed checks are in the
 
 ## Privacy
 
+Read [RiskThinking.ai’s Privacy Policy](https://riskthinking.ai/privacy-policy).
+
 Tool inputs, such as coordinates and company searches, are sent to the CDT
 Express API; results return to your AI app. The connector does not request your
 whole conversation. Remote authorization uses VELO; the local extension uses

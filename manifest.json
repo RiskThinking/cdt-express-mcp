@@ -31,5 +31,8 @@
   },
   "version": "0.7.0",
   "documentation": "https://github.com/RiskThinking/cdt-express-mcp#readme",
-  "support": "https://github.com/RiskThinking/cdt-express-mcp/issues"
+  "support": "https://github.com/RiskThinking/cdt-express-mcp/issues",
+  "privacy_policies": [
+    "https://riskthinking.ai/privacy-policy"
+  ]
 }
