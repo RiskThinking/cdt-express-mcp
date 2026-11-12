@@ -111,7 +111,9 @@ async function main() {
   const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
     publicBaseUrl.hostname,
   );
-  if (!redisUrl && !isLocal)
+  // Development sign-in (never in production) may run behind a tunnel with
+  // in-memory state: one process, and a restart simply requires reconnecting.
+  if (!redisUrl && !isLocal && !devAuthorize)
     throw new Error("MCP_REDIS_URL is required for a remote deployment");
   const stateStore = redisUrl
     ? await connectRedisOAuthState(redisUrl, {

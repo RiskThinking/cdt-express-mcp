@@ -57,15 +57,18 @@ test account: the API key you enter reaches the local process.
    HTTPS URL. Start a tunnel, then restart the server with that origin:
 
    ```bash
-   cloudflared tunnel --url http://localhost:3000   # prints https://<name>.trycloudflare.com
-   MCP_PUBLIC_BASE_URL=https://<name>.trycloudflare.com MCP_TRUST_PROXY_HOPS=1 \
-     MCP_OAUTH_SECRET="$(openssl rand -hex 32)" MCP_ANONYMOUS_DISCOVERY=true \
-     MCP_DEV_AUTHORIZE=true node build/http.js
+   ngrok http 3000   # or: cloudflared tunnel --url http://localhost:3000
+   HOST=::1 MCP_PUBLIC_BASE_URL=https://<tunnel-host> MCP_ALLOWED_HOSTS=localhost \
+     MCP_TRUST_PROXY_HOPS=1 MCP_OAUTH_SECRET="$(openssl rand -hex 32)" \
+     MCP_ANONYMOUS_DISCOVERY=true MCP_DEV_AUTHORIZE=true node build/http.js
    ```
 
-   Add `https://<name>.trycloudflare.com/mcp` as a custom connector. In-memory
-   OAuth state is enough for one process; restart the tunnel test after
-   restarting the server.
+   Add `https://<tunnel-host>/mcp` as a custom connector. `HOST=::1` matters
+   when the tunnel forwards to `localhost` and that resolves to IPv6. With
+   `MCP_DEV_AUTHORIZE`, OAuth state stays in memory without Redis; after a
+   server restart, disconnect and reconnect the client. ngrok's free plan shows
+   a warning page in the browser before the development sign-in page; choose
+   **Visit Site**.
 
 Record for each client: connects without sign-in, lists tools, runs
 `get_metrics_definition`, prompts for sign-in on the first API-backed call,
