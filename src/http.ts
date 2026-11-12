@@ -285,6 +285,9 @@ async function main() {
       const request = String(req.query.request || "");
       try {
         const description = provider.describeAuthorizationRequest(request);
+        // With the global no-referrer policy, browsers send `Origin: null` on
+        // the form POST and the origin check rejects it.
+        res.setHeader("Referrer-Policy", "same-origin");
         res.type("html").send(renderDevAuthorizePage(request, description));
       } catch {
         res.status(400).send("Authorization request is invalid or expired");
