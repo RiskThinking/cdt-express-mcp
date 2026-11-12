@@ -254,6 +254,18 @@ test("without anonymous discovery every MCP request requires a token", async (t)
   assert.equal((await fetch(`${baseUrl}/dev/authorize`)).status, 404);
 });
 
+test("development sign-in may run behind a tunnel without Redis", async (t) => {
+  const tunnel = {
+    MCP_PUBLIC_BASE_URL: "https://example.ngrok-free.app",
+    MCP_ALLOWED_HOSTS: "127.0.0.1",
+    MCP_TRUST_PROXY_HOPS: "1",
+  };
+  const withDev = await startMcp(t, { ...tunnel, MCP_DEV_AUTHORIZE: "true" });
+  assert.notEqual(withDev.exited, true);
+  const withoutDev = await startMcp(t, tunnel);
+  assert.equal(withoutDev.exited, true, "a remote deployment needs Redis");
+});
+
 test("development sign-in refuses to start in production", async (t) => {
   const result = await startMcp(t, {
     NODE_ENV: "production",
