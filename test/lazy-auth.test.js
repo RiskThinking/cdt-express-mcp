@@ -48,6 +48,16 @@ test("public request classification", () => {
   assert.equal(isPublicMcpRequest(call("get_metrics_definition")), true);
   assert.equal(isPublicMcpRequest(call("get_climate_metrics_exposure")), false);
   assert.equal(isPublicMcpRequest(call("unknown_tool")), false);
+  // Newer clients open with server/discover; unknown methods must not demand
+  // sign-in, or the client marks the whole server as needing authentication.
+  assert.equal(
+    isPublicMcpRequest({ jsonrpc: "2.0", id: 1, method: "server/discover" }),
+    true,
+  );
+  assert.equal(
+    isPublicMcpRequest({ jsonrpc: "2.0", id: 1, method: "tasks/result" }),
+    false,
+  );
   assert.equal(isPublicMcpRequest({ jsonrpc: "2.0", id: 1, result: {} }), false);
   assert.equal(isPublicMcpRequest({}), false);
   assert.equal(isPublicMcpRequest(null), false);
