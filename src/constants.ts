@@ -32,6 +32,7 @@ Typical workflows:
 - A place: call get_climate_metrics_exposure (hazard levels) or get_climate_metrics_impact (asset damage) with latitude, longitude, risk_factors, and at least one pathway or horizon. Use the distribution tools for the full range of outcomes of one hazard.
 - A company: search_companies, then use the returned id with get_company_climate_scores, get_company_assets, or get_company_geo_clusters.
 - A market index: search_market_indexes, then get_market_index_climate_scores or get_market_index_companies_climate_scores to rank constituents.
+- Common questions (how exposed is a company, how hot or how wet a place will get, whether a farm gets drier, which sites are most at risk) have prompts with step-by-step workflows and answer formats.
 
 Conventions:
 - pathway is an emissions scenario such as ssp245 (middle of the road) or ssp585 (high emissions); horizon is a year from 2010 (baseline) to 2100.

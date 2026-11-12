@@ -10,6 +10,8 @@ import {
   WEBSITE_URL,
 } from "./constants.js";
 import { METRIC_DEFINITIONS } from "./glossary.js";
+import { z } from "zod";
+import { SKILL_PROMPTS } from "./prompts.generated.js";
 import { API_OUTPUT_SCHEMA } from "./schema.js";
 import { API_BASE_URL, API_TOOLS, toolInputSchema } from "./tools.js";
 import { getCallback } from "./utils.js";
@@ -125,5 +127,45 @@ export const getServer = (apiKey?: string) => {
     }
   }
 
+  // Question workflows from crc-docs skills, as one-click starters.
+  for (const prompt of SKILL_PROMPTS) {
+    server.registerPrompt(
+      prompt.name,
+      {
+        title: prompt.title,
+        description: prompt.description,
+        argsSchema: {
+          [prompt.argument.name]: z
+            .string()
+            .optional()
+            .describe(prompt.argument.description),
+        },
+      },
+      (args: Record<string, string | undefined>) => ({
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: renderSkillPrompt(prompt, args[prompt.argument.name]),
+            },
+          },
+        ],
+      }),
+    );
+  }
+
   return server;
 };
+
+export const renderSkillPrompt = (
+  prompt: (typeof SKILL_PROMPTS)[number],
+  value: string | undefined,
+) =>
+  [
+    `${prompt.title} ${prompt.argument.name[0].toUpperCase()}${prompt.argument.name.slice(1)}: ${value?.trim() || "(ask me)"}`,
+    "Answer by following the skill below. The CDT Express tools are connected, so use Route 1 (CDT) unless I ask for another data source.",
+    `<skill name="${prompt.name}" source="${prompt.source}">`,
+    prompt.skill,
+    "</skill>",
+  ].join("\n\n");

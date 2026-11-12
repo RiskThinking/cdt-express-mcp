@@ -60,3 +60,20 @@ Reference specifications:
 - [MCP Registry](https://github.com/modelcontextprotocol/registry)
 - [MCPB manifest](https://github.com/modelcontextprotocol/mcpb/blob/main/MANIFEST.md)
 - [Connector publishing checklist](anthropic-directory-submission.md)
+
+## Prompts from crc-docs
+
+The MCP prompts are the question skills in
+[crc-docs](https://github.com/RiskThinking/crc-docs/tree/main/.agents/skills),
+which remain the source of truth. To pick up skill changes, update a clean
+crc-docs checkout and run:
+
+```bash
+npm run sync:prompts -- --from ../crc-docs
+```
+
+This regenerates `src/prompts.generated.ts` with the crc-docs commit and a
+checksum per skill; commit it with a message naming that commit. A new skill
+needs a prompt argument in `scripts/sync-prompts.mjs`. `npm test` checks that
+every tool and parameter a skill's CDT route mentions exists, so renaming a
+tool or parameter fails here before it breaks a skill.
