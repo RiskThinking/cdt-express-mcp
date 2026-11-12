@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   ICONS,
+  MCP_SCOPE,
   METRICS,
   SERVER_DESCRIPTION,
   SERVER_INSTRUCTIONS,
@@ -12,7 +13,18 @@ import { METRIC_DEFINITIONS } from "./glossary.js";
 import { API_BASE_URL, API_TOOLS } from "./tools.js";
 import { getCallback } from "./utils.js";
 
-export const getServer = (apiKey: string) => {
+// ChatGPT reads per-tool security schemes to decide which tools need sign-in.
+const PUBLIC_SECURITY = { securitySchemes: [{ type: "noauth" }] };
+const SIGNED_IN_SECURITY = {
+  securitySchemes: [{ type: "oauth2", scopes: [MCP_SCOPE] }],
+};
+
+/**
+ * Build an MCP server for one request. Without an API key (anonymous
+ * discovery), API-backed tools are still listed but refuse to run; the HTTP
+ * layer normally rejects such calls with a 401 before they reach a tool.
+ */
+export const getServer = (apiKey?: string) => {
   const server = new McpServer(
     {
       name: "CDT Express MCP Server",
@@ -55,6 +67,7 @@ export const getServer = (apiKey: string) => {
       },
       title: "Get Climate Metric Definitions",
       description: `Returns the official CDT Express definitions for metrics: ${METRICS.join(", ")}.`,
+      _meta: PUBLIC_SECURITY,
     },
     async () => ({
       content: [
@@ -80,6 +93,7 @@ export const getServer = (apiKey: string) => {
         title: tool.title,
         description: tool.description,
         inputSchema: tool.input,
+        _meta: SIGNED_IN_SECURITY,
       },
       getCallback(
         tool.input,

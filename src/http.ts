@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import type { Request, Response } from "express";
 import express from "express";
 
-import { renderLandingPage } from "./landing.js";
+import { renderDevAuthorizePage, renderLandingPage } from "./landing.js";
 import {
   DEFAULT_CIMD_ORIGIN_POLICY,
   MCP_SCOPE,
@@ -23,6 +23,7 @@ import {
   connectRedisOAuthState,
   MemoryOAuthStateStore,
 } from "./oauth-state.js";
+import { isPublicMcpRequest } from "./public-requests.js";
 import { getServer } from "./server.js";
 
 type AuthenticatedRequest = Request & { auth?: AuthInfo };
@@ -67,10 +68,28 @@ async function main() {
     );
   }
   const resourceUrl = new URL("/mcp", publicBaseUrl);
-  const veloAuthorizeUrl = requiredUrl(
-    "VELO_AUTHORIZE_URL",
-    "https://velo.riskthinking.ai/mcp/authorize",
-  );
+  const booleanEnv = (name: string, fallback: "true" | "false") => {
+    const value = process.env[name] || fallback;
+    if (!["true", "false"].includes(value)) {
+      throw new Error(`${name} must be true or false`);
+    }
+    return value === "true";
+  };
+  // Serve initialize, tools/list, and public tools without a token (lazy
+  // authentication). API-backed tool calls still answer 401 to start sign-in.
+  const anonymousDiscovery = booleanEnv("MCP_ANONYMOUS_DISCOVERY", "false");
+  // Development only: a local page that accepts a pasted CDT API key in place
+  // of VELO sign-in, so tunnels and local clients can complete OAuth.
+  const devAuthorize = booleanEnv("MCP_DEV_AUTHORIZE", "false");
+  if (devAuthorize && process.env.NODE_ENV === "production") {
+    throw new Error("MCP_DEV_AUTHORIZE must not be enabled in production");
+  }
+  const veloAuthorizeUrl = devAuthorize
+    ? new URL("/dev/authorize", publicBaseUrl)
+    : requiredUrl(
+        "VELO_AUTHORIZE_URL",
+        "https://velo.riskthinking.ai/mcp/authorize",
+      );
   const secret = process.env.MCP_OAUTH_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error("MCP_OAUTH_SECRET must be at least 32 characters");
@@ -82,9 +101,7 @@ async function main() {
   const redisUrl =
     process.env.MCP_REDIS_URL ||
     (redisHostname ? `redis://${redisHostname}` : undefined);
-  const redisCluster = process.env.MCP_REDIS_CLUSTER || "false";
-  if (!["true", "false"].includes(redisCluster))
-    throw new Error("MCP_REDIS_CLUSTER must be true or false");
+  const redisCluster = booleanEnv("MCP_REDIS_CLUSTER", "false");
   const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
     publicBaseUrl.hostname,
   );
@@ -92,7 +109,7 @@ async function main() {
     throw new Error("MCP_REDIS_URL is required for a remote deployment");
   const stateStore = redisUrl
     ? await connectRedisOAuthState(redisUrl, {
-        cluster: redisCluster === "true",
+        cluster: redisCluster,
         password: process.env.MCP_REDIS_PASSWORD,
       })
     : new MemoryOAuthStateStore();
@@ -234,6 +251,44 @@ async function main() {
     },
   );
 
+  if (devAuthorize) {
+    console.error(
+      "MCP_DEV_AUTHORIZE is enabled: sign-in accepts a pasted CDT API key",
+    );
+    app.get("/dev/authorize", (req, res) => {
+      const request = String(req.query.request || "");
+      try {
+        const description = provider.describeAuthorizationRequest(request);
+        res.type("html").send(renderDevAuthorizePage(request, description));
+      } catch {
+        res.status(400).send("Authorization request is invalid or expired");
+      }
+    });
+    app.post(
+      "/dev/authorize",
+      express.urlencoded({ extended: false, limit: "16kb" }),
+      async (req, res) => {
+        const { request, api_key: apiKey } = req.body ?? {};
+        if (
+          typeof request !== "string" ||
+          typeof apiKey !== "string" ||
+          !apiKey.trim()
+        ) {
+          res.status(400).send("request and api_key are required");
+          return;
+        }
+        try {
+          res.redirect(
+            303,
+            await provider.completeVeloAuthorization(request, apiKey.trim()),
+          );
+        } catch {
+          res.status(400).send("Authorization request is invalid or expired");
+        }
+      },
+    );
+  }
+
   const serviceDocumentationUrl = new URL(
     "https://github.com/RiskThinking/cdt-express-mcp#remote-mcp",
   );
@@ -256,14 +311,32 @@ async function main() {
     requiredScopes: [MCP_SCOPE],
     resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl),
   });
+  const parseMcpBody = express.json({ limit: "1mb" });
+  // Without anonymous discovery, authenticate before parsing (unchanged
+  // behaviour). With it, parse first so the method decides: requests without
+  // an Authorization header may proceed only if they are public. Any request
+  // that carries a token, valid or not, is always verified, so expired tokens
+  // still get a 401 and clients refresh them.
+  const mcpAccess: express.RequestHandler[] = anonymousDiscovery
+    ? [
+        parseMcpBody,
+        (req, res, next) => {
+          if (!req.headers.authorization && isPublicMcpRequest(req.body)) {
+            next();
+            return;
+          }
+          authMiddleware(req, res, next);
+        },
+      ]
+    : [authMiddleware, parseMcpBody];
+
   // Each request gets its own transport and server. Identity and credentials
   // come from the bearer token on this request, never from a prior session.
   app.post(
     "/mcp",
-    authMiddleware,
-    express.json({ limit: "1mb" }),
+    ...mcpAccess,
     async (req: AuthenticatedRequest, res: Response) => {
-      const server = getServer(getApiKey(req));
+      const server = getServer(req.auth ? getApiKey(req) : undefined);
       res.once("close", () => {
         void server
           .close()
@@ -291,7 +364,17 @@ async function main() {
   );
 
   // This server has no persistent event stream or transport session to delete.
-  app.all("/mcp", authMiddleware, (_req, res) => {
+  // With anonymous discovery, an unauthenticated GET (the client probing for a
+  // server-sent event stream) must get 405, not 401: a 401 would make clients
+  // start sign-in immediately and defeat lazy authentication.
+  const streamAccess: express.RequestHandler = (req, res, next) => {
+    if (anonymousDiscovery && !req.headers.authorization) {
+      next();
+      return;
+    }
+    authMiddleware(req, res, next);
+  };
+  app.all("/mcp", streamAccess, (_req, res) => {
     res.setHeader("Allow", "POST");
     res.status(405).json({
       jsonrpc: "2.0",

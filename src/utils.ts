@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { SERVER_VERSION } from "./constants.js";
+import { SERVER_VERSION, WEBSITE_URL } from "./constants.js";
 
 type ToolInput = Record<
   string,
@@ -178,13 +178,25 @@ const _fetch = async (
 export const getCallback = <T extends z.ZodTypeAny>(
   schema: T,
   urlTemplate: string,
-  apiKey: string,
+  apiKey: string | undefined,
   options?: {
     exhaustive?: boolean;
     format?: "json" | "csv";
   },
 ) => {
   return async (input: unknown) => {
+    // Fail closed if a routing bug lets an anonymous request reach an API tool.
+    if (!apiKey) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Sign in to CDT Express to use this tool. Access and API keys: ${WEBSITE_URL}`,
+          },
+        ],
+        isError: true,
+      };
+    }
     try {
       const validData = validateInput(schema, input) as ToolInput;
 

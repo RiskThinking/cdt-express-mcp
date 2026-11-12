@@ -26,7 +26,32 @@ import {
   SEARCH_MARKET_INDEXES_SCHEMA,
 } from "./schema.js";
 
-export const API_BASE_URL = "https://api.riskthinking.ai";
+const DEFAULT_API_BASE_URL = "https://api.riskthinking.ai";
+
+/**
+ * CDT Express API origin. CDT_API_BASE_URL overrides it for staging and
+ * offline tests; it must be HTTPS, or HTTP on loopback.
+ */
+export const resolveApiBaseUrl = (value = process.env.CDT_API_BASE_URL) => {
+  if (!value) return DEFAULT_API_BASE_URL;
+  const url = new URL(value);
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (
+    (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      "CDT_API_BASE_URL must be a credential-free HTTPS origin (HTTP is allowed on loopback)",
+    );
+  }
+  return url.origin;
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 /** One CDT Express API operation exposed as a tool. */
 export type ApiTool = {
@@ -39,6 +64,12 @@ export type ApiTool = {
   /** Fetch every page (up to a bound) and return CSV instead of one JSON page. */
   fetchAll?: boolean;
 };
+
+// Tools that never contact the API. With anonymous discovery enabled, they can
+// be called without signing in.
+export const PUBLIC_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "get_metrics_definition",
+]);
 
 // Single source of truth for the API-backed tools. The MCP server, published
 // tool metadata, and the UTCP manual are all generated from this table.
