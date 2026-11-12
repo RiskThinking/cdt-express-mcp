@@ -307,9 +307,10 @@ async function main() {
         // With the global no-referrer policy, browsers send `Origin: null` on
         // the form POST and the origin check rejects it.
         res.setHeader("Referrer-Policy", "same-origin");
+        // No form-action: browsers apply it to the redirect back to the client.
         res.setHeader(
           "Content-Security-Policy",
-          "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+          "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
         );
         res.type("html").send(renderDevAuthorizePage(request, description));
       } catch {
