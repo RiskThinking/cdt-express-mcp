@@ -262,3 +262,41 @@ export const INDEX_ASSETS_SCORES_SCHEMA = INDEX_ANALYTICS_BASE.extend(
 export const INDEX_CLUSTERS_SCHEMA = INDEX_ID_SCHEMA.extend(
   CLUSTER_PARAMS_SCHEMA.shape,
 ).extend(ENTITY_FILTER_SCHEMA.shape);
+
+// Paginated tools accept fetch_all to merge every page into CSV.
+export const FETCH_ALL_SCHEMA = z.object({
+  fetch_all: z
+    .boolean()
+    .optional()
+    .describe(
+      "Fetch every page (up to 30 pages of 100 rows) and return CSV with a header row instead of one JSON page. Use only when the full set is needed; it is slower and uses more API quota.",
+    ),
+});
+
+// Structured output shared by every API-backed tool. CDT Express responses are
+// JSON objects: lists carry `results` and `pagination`, single records are the
+// record itself. Kept loose so an added API field never fails a tool call.
+export const API_OUTPUT_SCHEMA = z.looseObject({
+  results: z
+    .unknown()
+    .optional()
+    .describe("Records returned by CDT Express, usually an array of objects."),
+  pagination: z
+    .looseObject({
+      cursor: z.string().nullable().optional(),
+      count: z.number().nullable().optional(),
+      last_page: z.boolean().nullable().optional(),
+    })
+    .nullable()
+    .optional()
+    .describe("Pass pagination.cursor back as cursor to get the next page."),
+  pages_fetched: z
+    .number()
+    .int()
+    .optional()
+    .describe("With fetch_all: how many pages were merged."),
+  truncated: z
+    .boolean()
+    .optional()
+    .describe("With fetch_all: true if more pages existed than were fetched."),
+});

@@ -154,3 +154,144 @@ test("initialize advertises identity and agent instructions aligned with server.
     assert.ok(names.has(name), `instructions mention unknown tool ${name}`);
   }
 });
+
+const connect = async (t) => {
+  const server = getServer("test-key");
+  const client = new Client({ name: "p2-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  return client;
+};
+
+const mockFetch = (t, handler) => {
+  const original = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (url, options) => {
+    urls.push(new URL(url));
+    return handler(new URL(url), options, urls.length);
+  };
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  return urls;
+};
+
+test("paginated tools accept fetch_all and every all-pages alias is deprecated", async (t) => {
+  const client = await connect(t);
+  const { tools } = await client.listTools();
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+  const paginated = tools.filter((tool) => tool.inputSchema.properties.fetch_all);
+  assert.equal(paginated.length, 10);
+  assert.equal(tools.length, 40);
+  const aliases = tools.filter((tool) =>
+    tool.description.startsWith("Deprecated:"),
+  );
+  assert.equal(aliases.length, 10);
+  for (const alias of aliases) {
+    const target = alias.description.match(/call (\w+) with fetch_all/)[1];
+    assert.ok(byName.get(target)?.inputSchema.properties.fetch_all, target);
+    assert.equal(alias.inputSchema.properties.fetch_all, undefined);
+  }
+  for (const tool of tools) {
+    if (tool.name === "get_metrics_definition") continue;
+    assert.equal(tool.outputSchema?.type, "object", tool.name);
+  }
+});
+
+test("fetch_all merges pages into CSV with structured rows", async (t) => {
+  const client = await connect(t);
+  const urls = mockFetch(t, (url) =>
+    Response.json(
+      !url.searchParams.has("cursor")
+        ? {
+            results: [{ id: "a", name: "One" }],
+            pagination: { cursor: "c1", count: 1, last_page: false },
+          }
+        : {
+            results: [{ id: "b", name: "Two, Inc" }],
+            pagination: { cursor: null, count: 1, last_page: true },
+          },
+    ),
+  );
+  const result = await client.callTool({
+    name: "list_assets",
+    arguments: { country: "CAN", fetch_all: true },
+  });
+  assert.notEqual(result.isError, true);
+  assert.equal(urls.length, 2);
+  assert.equal(urls[0].searchParams.has("fetch_all"), false);
+  assert.equal(urls[0].searchParams.get("limit"), "100");
+  assert.equal(urls[0].searchParams.get("country"), "CAN");
+  assert.equal(urls[1].searchParams.get("cursor"), "c1");
+  assert.equal(result.content[0].text, 'id,name\na,One\nb,"Two, Inc"');
+  assert.deepEqual(result.structuredContent, {
+    results: [
+      { id: "a", name: "One" },
+      { id: "b", name: "Two, Inc" },
+    ],
+    pages_fetched: 2,
+    truncated: false,
+  });
+
+  // The deprecated alias behaves the same.
+  const alias = await client.callTool({
+    name: "list_all_assets",
+    arguments: { country: "CAN" },
+  });
+  assert.equal(alias.content[0].text, result.content[0].text);
+});
+
+test("one page returns compact JSON text and matching structured content", async (t) => {
+  const client = await connect(t);
+  const page = {
+    results: [{ id: "a" }],
+    pagination: { cursor: "c1", count: 1, last_page: false },
+  };
+  const urls = mockFetch(t, () => Response.json(page));
+  const result = await client.callTool({
+    name: "list_assets",
+    arguments: { limit: 1 },
+  });
+  assert.equal(urls[0].searchParams.get("limit"), "1");
+  assert.equal(result.content[0].text, JSON.stringify(page));
+  assert.deepEqual(result.structuredContent, page);
+});
+
+test("single records and unexpected shapes still satisfy the output schema", async (t) => {
+  const client = await connect(t);
+  const record = { id: "dc06170e-8cd8-4194-a975-7624f3a8ee61", name: "Co" };
+  mockFetch(t, (url) =>
+    url.pathname.endsWith("/subsidiaries")
+      ? Response.json([{ id: "s" }])
+      : Response.json(record),
+  );
+  const company = await client.callTool({
+    name: "get_company",
+    arguments: { company_id: record.id },
+  });
+  assert.notEqual(company.isError, true);
+  assert.deepEqual(company.structuredContent, record);
+  const subsidiaries = await client.callTool({
+    name: "get_company_subsidiaries",
+    arguments: { company_id: record.id },
+  });
+  assert.notEqual(subsidiaries.isError, true);
+  assert.deepEqual(subsidiaries.structuredContent, { results: [{ id: "s" }] });
+});
+
+test("path parameters are URL-encoded", async (t) => {
+  const { z } = await import("zod");
+  const urls = mockFetch(t, () => Response.json({}));
+  await getCallback(
+    z.object({ id: z.string() }),
+    "https://api.riskthinking.ai/v3/assets/{id}",
+    "test-key",
+  )({ id: "../companies?x=1" });
+  assert.equal(urls[0].pathname, "/v3/assets/..%2Fcompanies%3Fx%3D1");
+});

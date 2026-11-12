@@ -41,10 +41,15 @@ installation or API key is needed for the remote connection.
 - “Find Microsoft in CDT Express and retrieve its climate risk scores for
   ssp245 in 2050.”
 
-The 40 read-only tools cover climate exposure and impact metrics, hazard
-distributions, assets, companies, and market indexes. Available data depends on
-your account permissions; API calls may consume your quota. Use narrower filters
-or ask for a small sample when exploring large datasets.
+The 30 read-only tools cover climate exposure and impact metrics, hazard
+distributions, assets, companies, and market indexes. List tools return one
+page at a time, or every page as CSV with `fetch_all`; results also come as
+structured JSON for apps that support it. Available data depends on your
+account permissions; API calls may consume your quota. Use narrower filters or
+ask for a small sample when exploring large datasets.
+
+The `list_all_*` and `get_all_*` tools are deprecated and will be removed in
+0.9.0; use the matching list tool with `fetch_all: true`.
 
 ## Local Claude Desktop extension (MCPB)
 
