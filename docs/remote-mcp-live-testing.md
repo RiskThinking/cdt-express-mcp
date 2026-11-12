@@ -28,12 +28,13 @@ Health, discovery, and the icon should return HTTP 200. Opening
 Without a bearer token, MCP requests behave according to
 `MCP_ANONYMOUS_DISCOVERY`:
 
+- `true` (default, lazy authentication): `initialize`, `tools/list`, resource
+  and prompt reads, and `get_metrics_definition` return 200; calls to
+  API-backed tools return 401 with `resource_metadata` and
+  `scope="mcp:tools"`; `GET /mcp` returns 405. Any request carrying an invalid
+  token still returns 401.
 - `false`: every MCP request returns HTTP 401 with protected-resource discovery
   information in `WWW-Authenticate`.
-- `true` (lazy authentication): `initialize`, `tools/list`, resource and prompt
-  reads, and `get_metrics_definition` return 200; calls to API-backed tools
-  return 401 with `resource_metadata` and `scope="mcp:tools"`; `GET /mcp`
-  returns 405. Any request carrying an invalid token still returns 401.
 
 The origin (`https://mcp.riskthinking.ai/`) also accepts MCP requests, as a
 second OAuth resource with its metadata at
@@ -50,8 +51,8 @@ test account: the API key you enter reaches the local process.
 
    ```bash
    npm run build
-   MCP_OAUTH_SECRET="$(openssl rand -hex 32)" MCP_ANONYMOUS_DISCOVERY=true \
-     MCP_DEV_AUTHORIZE=true node build/http.js
+   MCP_OAUTH_SECRET="$(openssl rand -hex 32)" MCP_DEV_AUTHORIZE=true \
+     node build/http.js
    ```
 
 2. **Local clients** (MCP Inspector, Claude Code) reach `http://localhost:3000/mcp`
@@ -65,7 +66,7 @@ test account: the API key you enter reaches the local process.
    ngrok http 3000   # or: cloudflared tunnel --url http://localhost:3000
    HOST=::1 MCP_PUBLIC_BASE_URL=https://<tunnel-host> MCP_ALLOWED_HOSTS=localhost \
      MCP_TRUST_PROXY_HOPS=1 MCP_OAUTH_SECRET="$(openssl rand -hex 32)" \
-     MCP_ANONYMOUS_DISCOVERY=true MCP_DEV_AUTHORIZE=true node build/http.js
+     MCP_DEV_AUTHORIZE=true node build/http.js
    ```
 
    Add `https://<tunnel-host>/mcp` as a custom connector. `HOST=::1` matters

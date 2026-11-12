@@ -312,8 +312,24 @@ test("the root serves MCP beside the landing page and leaves /mcp unchanged", as
   assert.ok((await utcp.json()).tools.length > 0);
 });
 
+test("lazy authentication is on by default", async (t) => {
+  const { resourceUrl } = await startMcp(t, {});
+  assert.equal((await rpc(resourceUrl, INITIALIZE)).status, 200);
+  assert.equal(
+    (
+      await rpc(
+        resourceUrl,
+        call("get_climate_metrics_exposure", EXPOSURE_ARGS),
+      )
+    ).status,
+    401,
+  );
+});
+
 test("without anonymous discovery every MCP request requires a token", async (t) => {
-  const { baseUrl, resourceUrl } = await startMcp(t, {});
+  const { baseUrl, resourceUrl } = await startMcp(t, {
+    MCP_ANONYMOUS_DISCOVERY: "false",
+  });
   assert.equal((await rpc(resourceUrl, INITIALIZE)).status, 401);
   assert.equal((await rpc(`${baseUrl}/`, INITIALIZE)).status, 401);
   assert.equal((await fetch(`${baseUrl}/`)).status, 200, "landing page");

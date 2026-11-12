@@ -86,8 +86,9 @@ async function main() {
     return value === "true";
   };
   // Serve initialize, tools/list, and public tools without a token (lazy
-  // authentication). API-backed tool calls still answer 401 to start sign-in.
-  const anonymousDiscovery = booleanEnv("MCP_ANONYMOUS_DISCOVERY", "false");
+  // authentication, the default). API-backed tool calls still answer 401 to
+  // start sign-in. Set false to require a token for every MCP request.
+  const anonymousDiscovery = booleanEnv("MCP_ANONYMOUS_DISCOVERY", "true");
   // Development only: a local page that accepts a pasted CDT API key in place
   // of VELO sign-in, so tunnels and local clients can complete OAuth.
   const devAuthorize = booleanEnv("MCP_DEV_AUTHORIZE", "false");
