@@ -149,7 +149,9 @@ test("initialize advertises identity and agent instructions aligned with server.
   // Every tool the instructions name must exist.
   const { tools } = await client.listTools();
   const names = new Set(tools.map((tool) => tool.name));
-  for (const [name] of instructions.matchAll(/\b(?:get|list|search)_[a-z_]+\b/g)) {
+  for (const [name] of instructions.matchAll(
+    /\b(?:get|list|search)_[a-z_]+\b/g,
+  )) {
     if (name.endsWith("_")) continue; // list_all_* / get_all_* wildcards
     assert.ok(names.has(name), `instructions mention unknown tool ${name}`);
   }
@@ -186,7 +188,9 @@ test("paginated tools accept fetch_all and every all-pages alias is deprecated",
   const client = await connect(t);
   const { tools } = await client.listTools();
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
-  const paginated = tools.filter((tool) => tool.inputSchema.properties.fetch_all);
+  const paginated = tools.filter(
+    (tool) => tool.inputSchema.properties.fetch_all,
+  );
   assert.equal(paginated.length, 10);
   assert.equal(tools.length, 40);
   const aliases = tools.filter((tool) =>
@@ -313,7 +317,10 @@ test("crc-docs skills are offered as prompts", async (t) => {
   assert.match(text, /^How exposed is this company\? Company: Walmart/);
   assert.match(text, /use Route 1 \(CDT\)/);
   assert.match(text, /### Route 1: CDT/);
-  assert.match(text, /source="https:\/\/github\.com\/RiskThinking\/crc-docs\/blob\/[0-9a-f]{40}\//);
+  assert.match(
+    text,
+    /source="https:\/\/github\.com\/RiskThinking\/crc-docs\/blob\/[0-9a-f]{40}\//,
+  );
   const empty = await client.getPrompt({ name: "how-hot-will-it-get" });
   assert.match(empty.messages[0].content.text, /Place: \(ask me\)/);
 });
@@ -338,7 +345,65 @@ test("crc-docs CDT routes only name tools and parameters that exist", async (t) 
       }
     }
     for (const [, key] of route.matchAll(/`([a-z_]+): /g)) {
-      assert.ok(properties.has(key), `${prompt.name} uses unknown parameter ${key}`);
+      assert.ok(
+        properties.has(key),
+        `${prompt.name} uses unknown parameter ${key}`,
+      );
     }
   }
+});
+
+test("fetch_all keeps merged rows when a later page fails", async (t) => {
+  const client = await connect(t);
+  mockFetch(t, (url) =>
+    !url.searchParams.has("cursor")
+      ? Response.json({
+          results: [{ id: "a" }],
+          pagination: { cursor: "c1", count: 1, last_page: false },
+        })
+      : new Response("upstream detail", { status: 503 }),
+  );
+  const result = await client.callTool({
+    name: "list_assets",
+    arguments: { fetch_all: true },
+  });
+  assert.notEqual(result.isError, true);
+  assert.match(result.content[0].text, /later page failed: .*HTTP 503/);
+  assert.doesNotMatch(result.content[0].text, /upstream detail/);
+  assert.equal(result.content[1].text, "id\na");
+  assert.equal(result.structuredContent.truncated, true);
+  assert.equal(result.structuredContent.pages_fetched, 1);
+});
+
+test("empty lists are omitted and nested values stay JSON in CSV", async (t) => {
+  const client = await connect(t);
+  const urls = mockFetch(t, () => Response.json({ results: [] }));
+  await client.callTool({
+    name: "get_climate_metrics_exposure",
+    arguments: {
+      latitude: 43.65,
+      longitude: -79.38,
+      risk_factors: ["hot_days"],
+      pathway: [],
+      horizon: ["2050"],
+    },
+  });
+  assert.equal(urls[0].searchParams.has("pathway"), false);
+  assert.equal(urls[0].searchParams.get("risk_factor"), "hot_days");
+
+  assert.equal(
+    toCSV([{ tags: ["a", "b"], meta: { x: 1 } }]),
+    'tags,meta\n"a,b","{""x"":1}"',
+  );
+});
+
+test("an unreadable upstream body gets a clear error", async (t) => {
+  const client = await connect(t);
+  mockFetch(t, () => new Response("<html>", { status: 200 }));
+  const result = await client.callTool({
+    name: "list_assets",
+    arguments: {},
+  });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /could not be read/);
 });
