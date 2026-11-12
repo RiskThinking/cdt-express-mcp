@@ -13,7 +13,8 @@ https://mcp.riskthinking.ai/mcp
 ```
 
 1. **Add a custom MCP connection** in your AI app. Name it **CDT Express** and
-   paste the URL above. If asked for a transport, choose **Streamable HTTP**.
+   paste the URL above (the bare `https://mcp.riskthinking.ai` also works). If
+   asked for a transport, choose **Streamable HTTP**.
 2. **Connect with OAuth.** Sign in to VELO and approve access. Keep automatic
    client registration or the client's published identity selected; leave manual
    client ID, client secret, and API key fields empty. Depending on your app,

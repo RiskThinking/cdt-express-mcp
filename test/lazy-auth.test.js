@@ -58,7 +58,10 @@ test("public request classification", () => {
     isPublicMcpRequest({ jsonrpc: "2.0", id: 1, method: "tasks/result" }),
     false,
   );
-  assert.equal(isPublicMcpRequest({ jsonrpc: "2.0", id: 1, result: {} }), false);
+  assert.equal(
+    isPublicMcpRequest({ jsonrpc: "2.0", id: 1, result: {} }),
+    false,
+  );
   assert.equal(isPublicMcpRequest({}), false);
   assert.equal(isPublicMcpRequest(null), false);
   assert.equal(isPublicMcpRequest([]), false);
@@ -152,13 +155,14 @@ test("anonymous discovery serves public requests and challenges the rest", async
   assert.equal(api.requests.length, 0, "anonymous requests reached the API");
 });
 
-test("an SDK client connects anonymously, then signs in on the first protected call", async (t) => {
+const lazySignIn = async (t, path) => {
   const api = await startFakeApi(t);
-  const { baseUrl, resourceUrl } = await startMcp(t, {
+  const { baseUrl } = await startMcp(t, {
     MCP_ANONYMOUS_DISCOVERY: "true",
     MCP_DEV_AUTHORIZE: "true",
     CDT_API_BASE_URL: api.url,
   });
+  const resourceUrl = new URL(path, baseUrl).href;
 
   const redirectUri = "http://127.0.0.1:1/callback";
   const store = {};
@@ -253,11 +257,66 @@ test("an SDK client connects anonymously, then signs in on the first protected c
   assert.equal(api.requests.length, 1);
   assert.equal(api.requests[0].authorization, "Bearer test-api-key");
   assert.match(api.requests[0].url, /^\/v4\/climate\/metrics\/exposure\?/);
+};
+
+test("an SDK client connects anonymously, then signs in on the first protected call", (t) =>
+  lazySignIn(t, "/mcp"));
+
+test("the bare origin works as the connection URL", (t) => lazySignIn(t, "/"));
+
+test("the root serves MCP beside the landing page and leaves /mcp unchanged", async (t) => {
+  const { baseUrl, resourceUrl } = await startMcp(t, {
+    MCP_ANONYMOUS_DISCOVERY: "true",
+  });
+  const root = `${baseUrl}/`;
+
+  const rootMetadata = await (
+    await fetch(`${baseUrl}/.well-known/oauth-protected-resource`)
+  ).json();
+  assert.equal(rootMetadata.resource, root);
+  assert.deepEqual(rootMetadata.scopes_supported, ["mcp:tools"]);
+  const mcpMetadata = await (
+    await fetch(`${baseUrl}/.well-known/oauth-protected-resource/mcp`)
+  ).json();
+  assert.equal(mcpMetadata.resource, resourceUrl);
+
+  assert.equal((await rpc(root, INITIALIZE)).status, 200);
+  const protectedCall = await rpc(
+    root,
+    call("get_climate_metrics_exposure", EXPOSURE_ARGS),
+  );
+  assert.equal(protectedCall.status, 401);
+  assert.match(
+    protectedCall.headers.get("www-authenticate"),
+    /resource_metadata="[^"]+\/\.well-known\/oauth-protected-resource"/,
+  );
+  const mcpCall = await rpc(
+    resourceUrl,
+    call("get_climate_metrics_exposure", EXPOSURE_ARGS),
+  );
+  assert.match(
+    mcpCall.headers.get("www-authenticate"),
+    /resource_metadata="[^"]+\/\.well-known\/oauth-protected-resource\/mcp"/,
+  );
+
+  const browser = await fetch(root, {
+    headers: { Accept: "text/html,application/xhtml+xml,*/*;q=0.8" },
+  });
+  assert.equal(browser.status, 200);
+  assert.match(browser.headers.get("content-type"), /text\/html/);
+  const probe = await fetch(root, { headers: { Accept: "text/event-stream" } });
+  assert.equal(probe.status, 405);
+
+  const utcp = await fetch(`${baseUrl}/utcp`);
+  assert.equal(utcp.status, 200);
+  assert.ok((await utcp.json()).tools.length > 0);
 });
 
 test("without anonymous discovery every MCP request requires a token", async (t) => {
   const { baseUrl, resourceUrl } = await startMcp(t, {});
   assert.equal((await rpc(resourceUrl, INITIALIZE)).status, 401);
+  assert.equal((await rpc(`${baseUrl}/`, INITIALIZE)).status, 401);
+  assert.equal((await fetch(`${baseUrl}/`)).status, 200, "landing page");
   assert.equal(
     (await rpc(resourceUrl, call("get_metrics_definition"))).status,
     401,

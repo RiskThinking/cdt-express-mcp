@@ -35,6 +35,11 @@ Without a bearer token, MCP requests behave according to
   return 401 with `resource_metadata` and `scope="mcp:tools"`; `GET /mcp`
   returns 405. Any request carrying an invalid token still returns 401.
 
+The origin (`https://mcp.riskthinking.ai/`) also accepts MCP requests, as a
+second OAuth resource with its metadata at
+`/.well-known/oauth-protected-resource`. Browsers opening it still get the
+landing page; `/mcp` remains the documented URL.
+
 ## Local client testing
 
 Use this loop to try changes in real clients before deploying. Use a dedicated
