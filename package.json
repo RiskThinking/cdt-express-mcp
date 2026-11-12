@@ -18,7 +18,8 @@
     "test": "npm run check:version && npm run build && node --test test/*.test.js",
     "version": "npm run sync:version",
     "sync:prompts": "node scripts/sync-prompts.mjs",
-    "build:catalog": "npm run build && node scripts/build-catalog.mjs"
+    "build:catalog": "npm run build && node scripts/build-catalog.mjs",
+    "test:live": "npm run build && node --test test/live.test.js"
   },
   "keywords": [
     "mcp",

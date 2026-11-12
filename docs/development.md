@@ -11,6 +11,10 @@ npm run pack
 npm run smoke
 ```
 
+`npm test` runs offline. `CDT_LIVE_API_KEY=... npm run test:live` also checks
+representative MCP tools, `fetch_all`, and the UTCP manual against the live API
+(a few dozen requests of quota).
+
 `npm test` builds the TypeScript sources and verifies version consistency,
 OAuth behavior, input handling, and tool metadata. Redis integration tests run
 when `MCP_TEST_REDIS_URL` points to disposable Redis; see
