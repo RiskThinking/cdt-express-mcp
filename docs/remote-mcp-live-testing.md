@@ -65,8 +65,12 @@ test account: the API key you enter reaches the local process.
 
    Add `https://<tunnel-host>/mcp` as a custom connector. `HOST=::1` matters
    when the tunnel forwards to `localhost` and that resolves to IPv6. With
-   `MCP_DEV_AUTHORIZE`, OAuth state stays in memory without Redis; after a
-   server restart, disconnect and reconnect the client. ngrok's free plan shows
+   `MCP_DEV_AUTHORIZE`, OAuth state stays in memory without Redis, so a server
+   restart invalidates refresh tokens and clients such as ChatGPT report the
+   connection as expired until you reconnect. To keep sign-ins across restarts,
+   reuse the same `MCP_OAUTH_SECRET` and run a local Redis
+   (`redis-server --port 6390`, then `MCP_REDIS_URL=redis://127.0.0.1:6390`).
+   ngrok's free plan shows
    a warning page in the browser before the development sign-in page; choose
    **Visit Site**.
 
