@@ -1,5 +1,8 @@
 export const SERVER_VERSION = "0.8.0";
 
+// OAuth scope that grants access to every API-backed tool.
+export const MCP_SCOPE = "mcp:tools";
+
 // Public identity shared by the MCP handshake, the HTTP landing page, and
 // server.json. Keep these values aligned with server.json (checked in tests).
 export const SERVER_TITLE = "CDT Express by Riskthinking.AI";

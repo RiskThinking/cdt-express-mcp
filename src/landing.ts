@@ -68,3 +68,34 @@ Version ${escapeHtml(SERVER_VERSION)} · <a href="${PRIVACY_URL}">Privacy policy
 </html>
 `;
 };
+
+/** Development-only stand-in for VELO sign-in (MCP_DEV_AUTHORIZE=true). */
+export const renderDevAuthorizePage = (
+  request: string,
+  description: { client_name: string; redirect_uri: string },
+) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Development sign-in</title>
+<style>
+body { font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 3rem auto; padding: 0 1rem; }
+input[type=password] { width: 100%; padding: .5rem; font: inherit; box-sizing: border-box; }
+button { margin-top: 1rem; padding: .5rem 1rem; font: inherit; }
+.warn { padding: .75rem 1rem; border: 1px solid #b26b00; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Development sign-in</h1>
+<p class="warn">This server runs with <code>MCP_DEV_AUTHORIZE</code>. It replaces VELO sign-in and must never be used in production.</p>
+<p><strong>${escapeHtml(description.client_name)}</strong> is asking for access. After you continue, it will return to <code>${escapeHtml(new URL(description.redirect_uri).origin)}</code>.</p>
+<form method="post" action="/dev/authorize">
+<input type="hidden" name="request" value="${escapeHtml(request)}">
+<label for="api_key">CDT Express API key</label>
+<input id="api_key" name="api_key" type="password" autocomplete="off" required>
+<button type="submit">Authorize</button>
+</form>
+</body>
+</html>
+`;

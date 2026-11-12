@@ -16,7 +16,9 @@ https://mcp.riskthinking.ai/mcp
    paste the URL above. If asked for a transport, choose **Streamable HTTP**.
 2. **Connect with OAuth.** Sign in to VELO and approve access. Keep automatic
    client registration or the client's published identity selected; leave manual
-   client ID, client secret, and API key fields empty.
+   client ID, client secret, and API key fields empty. Depending on your app,
+   sign-in happens when you add the connection or the first time CDT Express
+   fetches data; you can browse the tools and metric definitions before that.
 3. **Enable CDT Express in your conversation** and try a prompt below.
 
 Where to add the connection:

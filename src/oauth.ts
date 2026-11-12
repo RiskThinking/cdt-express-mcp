@@ -27,8 +27,9 @@ import type { Response } from "express";
 import { MemoryOAuthStateStore, type OAuthStateStore } from "./oauth-state.js";
 
 import { resolveCimdClient } from "./cimd.js";
+import { MCP_SCOPE } from "./constants.js";
 
-export const MCP_SCOPE = "mcp:tools";
+export { MCP_SCOPE };
 export const DEFAULT_CIMD_ORIGIN_POLICY = "*";
 
 const AUTHORIZATION_TTL_SECONDS = 5 * 60;
