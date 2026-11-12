@@ -8,9 +8,12 @@ import {
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { hostHeaderValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Request, Response } from "express";
 import express from "express";
 
+import { renderLandingPage } from "./landing.js";
 import {
   DEFAULT_CIMD_ORIGIN_POLICY,
   MCP_SCOPE,
@@ -23,6 +26,8 @@ import {
 import { getServer } from "./server.js";
 
 type AuthenticatedRequest = Request & { auth?: AuthInfo };
+// build/http.js -> public/ at the package root.
+const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), "../public");
 const requiredUrl = (name: string, fallback?: string) => {
   const value = process.env[name] || fallback;
   if (!value) throw new Error(`${name} is required`);
@@ -148,6 +153,24 @@ async function main() {
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Icons referenced by server.json and the initialize response.
+  for (const icon of ["icon-192.png", "icon-512.png"]) {
+    app.get(`/${icon}`, (_req, res) => {
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.sendFile(join(PUBLIC_DIR, icon));
+    });
+  }
+
+  // People who open the connection URL in a browser land here instead of a 404.
+  const landingPage = renderLandingPage(resourceUrl);
+  app.get("/", (_req, res) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    );
+    res.type("html").send(landingPage);
   });
 
   app.use((req, res, next) => {

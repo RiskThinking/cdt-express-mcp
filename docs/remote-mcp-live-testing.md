@@ -18,9 +18,12 @@ curl --fail --silent --show-error \
   https://mcp.riskthinking.ai/.well-known/oauth-protected-resource/mcp
 curl --fail --silent --show-error \
   https://mcp.riskthinking.ai/.well-known/oauth-authorization-server
+curl --fail --silent --show-error --output /dev/null \
+  https://mcp.riskthinking.ai/icon-192.png
 ```
 
-Health and discovery should return HTTP 200. An MCP request without a bearer
+Health, discovery, and the icon should return HTTP 200. Opening
+`https://mcp.riskthinking.ai/` in a browser should show the landing page. An MCP request without a bearer
 token should return HTTP 401 with protected-resource discovery information in
 `WWW-Authenticate`.
 

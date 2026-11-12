@@ -12,6 +12,7 @@ on:
       - Dockerfile
       - package-lock.json
       - package.json
+      - public/**
       - src/**
       - scripts/smoke-remote.mjs
       - tsconfig.json

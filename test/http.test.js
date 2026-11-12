@@ -236,6 +236,24 @@ test("remote OAuth and MCP flow", async (t) => {
   assert.equal(replayResponse.status, 400);
   assert.equal((await replayResponse.json()).error, "invalid_grant");
 
+  const landingResponse = await fetch(`${baseUrl}/`);
+  assert.equal(landingResponse.status, 200);
+  assert.match(landingResponse.headers.get("content-type"), /^text\/html/);
+  assert.match(
+    landingResponse.headers.get("content-security-policy"),
+    /default-src 'none'/,
+  );
+  const landing = await landingResponse.text();
+  assert.ok(landing.includes(resourceUrl));
+  assert.ok(landing.includes("https://velo.riskthinking.ai/cdt-express"));
+
+  for (const icon of ["icon-192.png", "icon-512.png"]) {
+    const iconResponse = await fetch(`${baseUrl}/${icon}`);
+    assert.equal(iconResponse.status, 200, icon);
+    assert.equal(iconResponse.headers.get("content-type"), "image/png");
+    assert.match(iconResponse.headers.get("cache-control"), /max-age=86400/);
+  }
+
   const unauthenticated = await fetch(resourceUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

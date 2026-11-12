@@ -2,8 +2,25 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.RiskThinking/cdt-express-mcp",
   "title": "CDT Express by Riskthinking.AI",
-  "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
-  "version": "0.7.0",
+  "description": "Physical climate risk metrics for locations, assets, companies, and market indexes from CDT Express",
+  "websiteUrl": "https://velo.riskthinking.ai/cdt-express",
+  "icons": [
+    {
+      "src": "https://mcp.riskthinking.ai/icon-192.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "192x192"
+      ]
+    },
+    {
+      "src": "https://mcp.riskthinking.ai/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    }
+  ],
+  "version": "0.8.0",
   "repository": {
     "url": "https://github.com/RiskThinking/cdt-express-mcp",
     "source": "github"
