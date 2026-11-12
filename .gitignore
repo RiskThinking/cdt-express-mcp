@@ -149,3 +149,7 @@ vite.config.ts.timestamp-*
 
 # Local planning notes
 plan/
+
+# Release assets
+utcp.json
+tools.json

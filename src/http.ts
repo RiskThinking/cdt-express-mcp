@@ -13,6 +13,12 @@ import { fileURLToPath } from "node:url";
 import type { Request, Response } from "express";
 import express from "express";
 
+import {
+  buildToolsCatalog,
+  buildUtcpManual,
+  GLOSSARY_PATH,
+} from "./catalog.js";
+import { METRIC_DEFINITIONS } from "./glossary.js";
 import { renderDevAuthorizePage, renderLandingPage } from "./landing.js";
 import {
   DEFAULT_CIMD_ORIGIN_POLICY,
@@ -179,6 +185,24 @@ async function main() {
       res.sendFile(join(PUBLIC_DIR, icon));
     });
   }
+
+  // Public, credential-free descriptions of the tools: the UTCP manual (for
+  // clients that call the CDT Express API directly with an API key), MCP tool
+  // metadata, and the metric glossary used by both.
+  const utcpManual = JSON.stringify(
+    buildUtcpManual({ glossaryUrl: new URL(GLOSSARY_PATH, publicBaseUrl).href }),
+  );
+  const toolsCatalog = JSON.stringify(buildToolsCatalog());
+  const publicDocument =
+    (body: string, type: string): express.RequestHandler =>
+    (_req, res) => {
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.type(type).send(body);
+    };
+  app.get("/utcp", publicDocument(utcpManual, "json"));
+  app.get("/tools.json", publicDocument(toolsCatalog, "json"));
+  app.get(GLOSSARY_PATH, publicDocument(METRIC_DEFINITIONS, "text"));
 
   // People who open the connection URL in a browser land here instead of a 404.
   const landingPage = renderLandingPage(resourceUrl);

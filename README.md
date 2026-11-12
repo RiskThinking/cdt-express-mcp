@@ -68,6 +68,49 @@ To update, install the newer MCPB and choose **Update**. See
 [Claude's extension guide](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
 if the settings differ in your version.
 
+## UTCP
+
+[UTCP](https://www.utcp.io/) clients call the CDT Express API directly, with no
+server in between. Register this manual:
+
+```text
+https://mcp.riskthinking.ai/utcp
+```
+
+It describes the same tools as the MCP server, except the `fetch_all` option
+and the deprecated `list_all_*` tools. List parameters such as `risk_factor`,
+`pathway`, and `horizon` are comma-separated strings. Calls use your CDT
+Express API key from [VELO](https://velo.riskthinking.ai/cdt-express), set as
+the `CDT_API_KEY` variable. The metric glossary needs no key.
+
+With the TypeScript SDK (`@utcp/sdk` and `@utcp/http`), variables are prefixed
+with the manual name:
+
+```ts
+import "@utcp/http";
+import { UtcpClient } from "@utcp/sdk";
+
+const client = await UtcpClient.create(process.cwd(), {
+  manual_call_templates: [
+    {
+      name: "cdtexpress",
+      call_template_type: "http",
+      http_method: "GET",
+      url: "https://mcp.riskthinking.ai/utcp",
+    },
+  ],
+  variables: { cdtexpress_CDT_API_KEY: process.env.CDT_API_KEY },
+});
+const exposure = await client.callTool(
+  "cdtexpress.get_climate_metrics_exposure",
+  { latitude: 43.6532, longitude: -79.3832, risk_factor: "hot_days", horizon: "2050" },
+);
+```
+
+Other UTCP clients report the exact variable name they expect when it is
+missing. Each release also attaches `utcp.json` and `tools.json` (MCP tool
+metadata).
+
 ## Need help?
 
 - **Can't add a connection?** Check that your app and workspace allow custom MCP
