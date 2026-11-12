@@ -356,7 +356,7 @@ export class VeloOAuthProvider implements OAuthServerProvider {
         "redirect_uri does not match the authorization request",
       );
     }
-    this.assertResource(resource?.href ?? code.resource);
+    this.assertSameResource(code.resource, resource);
     if (
       !(await this.stateStore.consume("code", this.digest(authorizationCode)))
     ) {
@@ -413,7 +413,7 @@ export class VeloOAuthProvider implements OAuthServerProvider {
         "The refresh token belongs to another client",
       );
     }
-    this.assertResource(resource?.href ?? claims.resource);
+    this.assertSameResource(claims.resource, resource);
     const nextScopes = scopes?.length ? scopes : claims.scopes;
     if (nextScopes.some((scope) => !claims.scopes.includes(scope))) {
       throw new InvalidScopeError(
@@ -480,6 +480,16 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     } catch {
       throw new InvalidGrantError(
         "The authorization code is invalid or expired",
+      );
+    }
+  }
+
+  // RFC 8707: a token request may name a resource, but only the one granted.
+  private assertSameResource(granted: string, requested?: URL) {
+    this.assertResource(granted);
+    if (requested && requested.href !== granted) {
+      throw new InvalidTargetError(
+        "The requested resource does not match the authorization",
       );
     }
   }

@@ -130,62 +130,74 @@ test("OAuth rotation, reuse detection, and revocation with development storage",
   await exerciseProvider(t, store, store);
 });
 
-test("Redis shares atomic OAuth state across independent providers", {
-  skip: !redisUrl,
-}, async (t) => {
-  const first = await connectRedisOAuthState(redisUrl, redisOptions);
-  const second = await connectRedisOAuthState(redisUrl, redisOptions);
-  t.after(async () => {
-    await first.close();
-    await second.close();
-  });
-  await exerciseProvider(t, first, second);
-});
+test(
+  "Redis shares atomic OAuth state across independent providers",
+  {
+    skip: !redisUrl,
+  },
+  async (t) => {
+    const first = await connectRedisOAuthState(redisUrl, redisOptions);
+    const second = await connectRedisOAuthState(redisUrl, redisOptions);
+    t.after(async () => {
+      await first.close();
+      await second.close();
+    });
+    await exerciseProvider(t, first, second);
+  },
+);
 
-test("Redis retains replay and grant state when clients reconnect", {
-  skip: !redisUrl,
-}, async (t) => {
-  const id = randomUUID();
-  const expiry = Math.floor(Date.now() / 1000) + 60;
-  const first = await connectRedisOAuthState(redisUrl, redisOptions);
-  assert.equal(await first.consume("code", id), false);
-  assert.equal(await first.putPending("code", id, expiry), true);
-  assert.equal(await first.consume("code", id), true);
-  assert.equal(await first.createGrant(id, "first-hash", expiry), true);
-  await first.close();
-  const childResult = await promisify(execFile)(
-    process.execPath,
-    [
-      "--input-type=module",
-      "--eval",
-      `
+test(
+  "Redis retains replay and grant state when clients reconnect",
+  {
+    skip: !redisUrl,
+  },
+  async (t) => {
+    const id = randomUUID();
+    const expiry = Math.floor(Date.now() / 1000) + 60;
+    const first = await connectRedisOAuthState(redisUrl, redisOptions);
+    assert.equal(await first.consume("code", id), false);
+    assert.equal(await first.putPending("code", id, expiry), true);
+    assert.equal(await first.consume("code", id), true);
+    assert.equal(await first.createGrant(id, "first-hash", expiry), true);
+    await first.close();
+    const childResult = await promisify(execFile)(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `
     import { connectRedisOAuthState } from './build/oauth-state.js';
     const state = await connectRedisOAuthState(process.env.MCP_TEST_REDIS_URL, { cluster: process.env.MCP_TEST_REDIS_CLUSTER === "true" });
     const id = ${JSON.stringify(id)};
     console.log(JSON.stringify([await state.consume('code', id), await state.isGrantActive(id)]));
     await state.close();
   `,
-    ],
-    { env: { ...process.env, MCP_TEST_REDIS_URL: redisUrl } },
-  );
-  assert.deepEqual(JSON.parse(childResult.stdout), [false, true]);
-  const second = await connectRedisOAuthState(redisUrl, redisOptions);
-  t.after(() => second.close());
-  assert.equal(await second.consume("code", id), false);
-  assert.equal(await second.isGrantActive(id), true);
-  await second.revokeGrant(id);
-});
+      ],
+      { env: { ...process.env, MCP_TEST_REDIS_URL: redisUrl } },
+    );
+    assert.deepEqual(JSON.parse(childResult.stdout), [false, true]);
+    const second = await connectRedisOAuthState(redisUrl, redisOptions);
+    t.after(() => second.close());
+    assert.equal(await second.consume("code", id), false);
+    assert.equal(await second.isGrantActive(id), true);
+    await second.revokeGrant(id);
+  },
+);
 
-test("Redis fails closed after connectivity is lost", {
-  skip: !redisUrl,
-}, async () => {
-  const store = await connectRedisOAuthState(redisUrl, redisOptions);
-  await store.close();
-  await assert.rejects(
-    store.isGrantActive(randomUUID()),
-    /storage is unavailable/,
-  );
-});
+test(
+  "Redis fails closed after connectivity is lost",
+  {
+    skip: !redisUrl,
+  },
+  async () => {
+    const store = await connectRedisOAuthState(redisUrl, redisOptions);
+    await store.close();
+    await assert.rejects(
+      store.isGrantActive(randomUUID()),
+      /storage is unavailable/,
+    );
+  },
+);
 
 test("missing pending state denies redemption, including after state loss", async () => {
   const store = new MemoryOAuthStateStore();
@@ -259,5 +271,80 @@ test("valid OAuth artifacts fail closed after all development state is lost", as
   await assert.rejects(
     provider.exchangeRefreshToken(client, tokens.refresh_token),
     /reused, revoked, or expired/,
+  );
+});
+
+test("tokens are issued only for the resource that was authorized", async () => {
+  const root = new URL("https://mcp.example.com/");
+  const mcp = new URL("https://mcp.example.com/mcp");
+  const provider = new VeloOAuthProvider({
+    secret: `test-only-secret-${randomUUID()}`,
+    issuerUrl: root,
+    resourceUrl: mcp,
+    alternateResourceUrls: [root],
+    veloAuthorizeUrl: new URL("https://velo.example.com/mcp/authorize"),
+  });
+  const client = await provider.clientsStore.registerClient({
+    redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+    token_endpoint_auth_method: "none",
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+  });
+  const authorize = async (resource) => {
+    let request;
+    await provider.authorize(
+      client,
+      {
+        redirectUri: client.redirect_uris[0],
+        codeChallenge: "test-challenge",
+        scopes: [MCP_SCOPE],
+        resource,
+      },
+      {
+        redirect: (_status, url) =>
+          (request = new URL(url).searchParams.get("request")),
+      },
+    );
+    const redirect = await provider.completeVeloAuthorization(request, "k");
+    return new URL(redirect).searchParams.get("code");
+  };
+
+  await assert.rejects(
+    provider.authorize(
+      client,
+      {
+        redirectUri: client.redirect_uris[0],
+        codeChallenge: "c",
+        scopes: [MCP_SCOPE],
+        resource: new URL("https://other.example.com/mcp"),
+      },
+      { redirect: () => {} },
+    ),
+    /not this MCP server/,
+  );
+  await assert.rejects(
+    provider.exchangeAuthorizationCode(
+      client,
+      await authorize(root),
+      undefined,
+      client.redirect_uris[0],
+      mcp,
+    ),
+    /does not match the authorization/,
+  );
+  const tokens = await provider.exchangeAuthorizationCode(
+    client,
+    await authorize(root),
+    undefined,
+    client.redirect_uris[0],
+    root,
+  );
+  assert.equal(
+    (await provider.verifyAccessToken(tokens.access_token)).resource.href,
+    root.href,
+  );
+  await assert.rejects(
+    provider.exchangeRefreshToken(client, tokens.refresh_token, undefined, mcp),
+    /does not match the authorization/,
   );
 });
