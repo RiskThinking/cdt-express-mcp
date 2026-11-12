@@ -191,6 +191,9 @@ export type OAuthConfig = {
   secret: string;
   issuerUrl: URL;
   resourceUrl: URL;
+  // Other identifiers for the same server, such as the bare origin for users
+  // who paste it without /mcp. Tokens for any of them work on every endpoint.
+  alternateResourceUrls?: readonly URL[];
   veloAuthorizeUrl: URL;
   allowedCimdOrigins?: ReadonlySet<string>;
   stateStore?: OAuthStateStore;
@@ -200,9 +203,15 @@ export class VeloOAuthProvider implements OAuthServerProvider {
   readonly clientsStore: OAuthRegisteredClientsStore;
   private readonly sealer: Sealer;
   private readonly stateStore: OAuthStateStore;
+  private readonly resources: ReadonlySet<string>;
 
   constructor(private readonly config: OAuthConfig) {
     this.sealer = new Sealer(config.secret);
+    this.resources = new Set(
+      [config.resourceUrl, ...(config.alternateResourceUrls ?? [])].map(
+        (url) => url.href,
+      ),
+    );
     this.stateStore = config.stateStore ?? new MemoryOAuthStateStore();
     this.clientsStore = new SealedClientsStore(
       this.sealer,
@@ -221,7 +230,7 @@ export class VeloOAuthProvider implements OAuthServerProvider {
     }
 
     const resource = params.resource?.href ?? this.config.resourceUrl.href;
-    if (resource !== this.config.resourceUrl.href) {
+    if (!this.resources.has(resource)) {
       throw new InvalidTargetError(
         "The requested resource is not this MCP server",
       );
@@ -452,7 +461,7 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       clientId: claims.clientId,
       scopes: claims.scopes,
       expiresAt: claims.expiresAt,
-      resource: this.config.resourceUrl,
+      resource: new URL(claims.resource),
       extra: {
         apiKey: claims.apiKey,
         authorizationId: claims.authorizationId,
@@ -476,7 +485,7 @@ export class VeloOAuthProvider implements OAuthServerProvider {
   }
 
   private assertResource(resource: string) {
-    if (resource !== this.config.resourceUrl.href) {
+    if (!this.resources.has(resource)) {
       throw new InvalidTargetError(
         "The token is not valid for this MCP server",
       );
@@ -495,7 +504,7 @@ export class VeloOAuthProvider implements OAuthServerProvider {
       claims = this.sealer.open<TokenClaims>(kind, request.token);
       if (
         claims.clientId !== client.client_id ||
-        claims.resource !== this.config.resourceUrl.href
+        !this.resources.has(claims.resource)
       )
         return;
     } catch {

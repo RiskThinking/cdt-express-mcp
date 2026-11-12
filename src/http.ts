@@ -3,6 +3,7 @@ import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middlew
 import {
   createOAuthMetadata,
   getOAuthProtectedResourceMetadataUrl,
+  mcpAuthMetadataRouter,
   mcpAuthRouter,
 } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -74,6 +75,9 @@ async function main() {
     );
   }
   const resourceUrl = new URL("/mcp", publicBaseUrl);
+  // People often paste the bare origin. The root also speaks MCP, as its own
+  // OAuth resource so clients that check the resource identifier accept it.
+  const rootResourceUrl = new URL("/", publicBaseUrl);
   const booleanEnv = (name: string, fallback: "true" | "false") => {
     const value = process.env[name] || fallback;
     if (!["true", "false"].includes(value)) {
@@ -127,6 +131,7 @@ async function main() {
     secret,
     issuerUrl: publicBaseUrl,
     resourceUrl,
+    alternateResourceUrls: [rootResourceUrl],
     veloAuthorizeUrl,
     allowedCimdOrigins:
       cimdOriginPolicy.trim() === "*"
@@ -192,7 +197,9 @@ async function main() {
   // clients that call the CDT Express API directly with an API key), MCP tool
   // metadata, and the metric glossary used by both.
   const utcpManual = JSON.stringify(
-    buildUtcpManual({ glossaryUrl: new URL(GLOSSARY_PATH, publicBaseUrl).href }),
+    buildUtcpManual({
+      glossaryUrl: new URL(GLOSSARY_PATH, publicBaseUrl).href,
+    }),
   );
   const toolsCatalog = JSON.stringify(buildToolsCatalog());
   const publicDocument =
@@ -206,9 +213,20 @@ async function main() {
   app.get("/tools.json", publicDocument(toolsCatalog, "json"));
   app.get(GLOSSARY_PATH, publicDocument(METRIC_DEFINITIONS, "text"));
 
+  // MCP clients probing for an event stream; browsers always accept HTML.
+  const isMcpStreamProbe = (req: Request) => {
+    const accept = req.headers.accept ?? "";
+    return (
+      accept.includes("text/event-stream") && !accept.includes("text/html")
+    );
+  };
   // People who open the connection URL in a browser land here instead of a 404.
   const landingPage = renderLandingPage(resourceUrl);
-  app.get("/", (_req, res) => {
+  app.get("/", (req, res, next) => {
+    if (isMcpStreamProbe(req)) {
+      next();
+      return;
+    }
     res.setHeader(
       "Content-Security-Policy",
       "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -334,83 +352,103 @@ async function main() {
     res.json({ ...oauthMetadata, client_id_metadata_document_supported: true });
   });
   app.use(mcpAuthRouter(authRouterOptions));
+  // Protected-resource metadata for the root, at
+  // /.well-known/oauth-protected-resource. The authorization-server route
+  // above stays first and keeps answering its own path.
+  app.use(
+    mcpAuthMetadataRouter({
+      oauthMetadata,
+      resourceServerUrl: rootResourceUrl,
+      scopesSupported: [MCP_SCOPE],
+      resourceName: authRouterOptions.resourceName,
+      serviceDocumentationUrl,
+    }),
+  );
 
-  const authMiddleware = requireBearerAuth({
-    verifier: provider,
-    requiredScopes: [MCP_SCOPE],
-    resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl),
-  });
+  const bearerAuth = (resource: URL) =>
+    requireBearerAuth({
+      verifier: provider,
+      requiredScopes: [MCP_SCOPE],
+      resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resource),
+    });
   const parseMcpBody = express.json({ limit: "1mb" });
   // Without anonymous discovery, authenticate before parsing (unchanged
   // behaviour). With it, parse first so the method decides: requests without
   // an Authorization header may proceed only if they are public. Any request
   // that carries a token, valid or not, is always verified, so expired tokens
   // still get a 401 and clients refresh them.
-  const mcpAccess: express.RequestHandler[] = anonymousDiscovery
-    ? [
-        parseMcpBody,
-        (req, res, next) => {
-          if (!req.headers.authorization && isPublicMcpRequest(req.body)) {
-            next();
-            return;
-          }
-          authMiddleware(req, res, next);
-        },
-      ]
-    : [authMiddleware, parseMcpBody];
+  const mcpAccess = (
+    authMiddleware: express.RequestHandler,
+  ): express.RequestHandler[] =>
+    anonymousDiscovery
+      ? [
+          parseMcpBody,
+          (req, res, next) => {
+            if (!req.headers.authorization && isPublicMcpRequest(req.body)) {
+              next();
+              return;
+            }
+            authMiddleware(req, res, next);
+          },
+        ]
+      : [authMiddleware, parseMcpBody];
 
   // Each request gets its own transport and server. Identity and credentials
   // come from the bearer token on this request, never from a prior session.
-  app.post(
-    "/mcp",
-    ...mcpAccess,
-    async (req: AuthenticatedRequest, res: Response) => {
-      const server = getServer(req.auth ? getApiKey(req) : undefined);
-      res.once("close", () => {
-        void server
-          .close()
-          .catch(() => console.error("MCP request cleanup failed"));
+  const handleMcp = async (req: AuthenticatedRequest, res: Response) => {
+    const server = getServer(req.auth ? getApiKey(req) : undefined);
+    res.once("close", () => {
+      void server
+        .close()
+        .catch(() => console.error("MCP request cleanup failed"));
+    });
+    try {
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
       });
-      try {
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined,
-          enableJsonResponse: true,
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch {
+      // Error objects can carry request headers or credentials.
+      console.error("MCP request failed");
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: "2.0",
+          error: { code: -32603, message: "Internal server error" },
+          id: null,
         });
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
-      } catch {
-        // Error objects can carry request headers or credentials.
-        console.error("MCP request failed");
-        if (!res.headersSent) {
-          res.status(500).json({
-            jsonrpc: "2.0",
-            error: { code: -32603, message: "Internal server error" },
-            id: null,
-          });
-        }
       }
-    },
-  );
+    }
+  };
 
   // This server has no persistent event stream or transport session to delete.
   // With anonymous discovery, an unauthenticated GET (the client probing for a
   // server-sent event stream) must get 405, not 401: a 401 would make clients
   // start sign-in immediately and defeat lazy authentication.
-  const streamAccess: express.RequestHandler = (req, res, next) => {
-    if (anonymousDiscovery && !req.headers.authorization) {
-      next();
-      return;
-    }
-    authMiddleware(req, res, next);
-  };
-  app.all("/mcp", streamAccess, (_req, res) => {
+  const streamAccess =
+    (authMiddleware: express.RequestHandler): express.RequestHandler =>
+    (req, res, next) => {
+      if (anonymousDiscovery && !req.headers.authorization) {
+        next();
+        return;
+      }
+      authMiddleware(req, res, next);
+    };
+  const methodNotAllowed: express.RequestHandler = (_req, res) => {
     res.setHeader("Allow", "POST");
     res.status(405).json({
       jsonrpc: "2.0",
       error: { code: -32000, message: "Method not allowed; use POST" },
       id: null,
     });
-  });
+  };
+
+  for (const resource of [resourceUrl, rootResourceUrl]) {
+    const auth = bearerAuth(resource);
+    app.post(resource.pathname, ...mcpAccess(auth), handleMcp);
+    app.all(resource.pathname, streamAccess(auth), methodNotAllowed);
+  }
 
   app.use(
     (
