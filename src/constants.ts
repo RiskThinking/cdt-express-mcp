@@ -40,6 +40,8 @@ Conventions:
 - Scores default to dcr_score. Request expected_impact or cvar_95 explicitly for financial damage. Call get_metrics_definition before explaining a metric.
 - List tools return one page: pass pagination.cursor back as cursor for the next. Set fetch_all: true only when the full set is needed; it merges up to 30 pages into CSV and uses more API quota. The list_all_* and get_all_* tools are deprecated aliases for fetch_all.
 
+Sign-in: browsing tools and get_metrics_definition need no account; data tools need the user to sign in. If a tool fails because sign-in or authentication is required, do not answer from other sources. Ask the user to sign in with the connect prompt their app shows, wait for them to confirm, then call the same tool again with the same arguments.
+
 Results depend on the user's CDT Express access. Sign-up and API keys: ${WEBSITE_URL}`;
 
 export const RISK_FACTORS: readonly string[] = [
