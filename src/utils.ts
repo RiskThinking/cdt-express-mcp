@@ -28,7 +28,8 @@ const buildParams = (inputs: ToolInput) => {
       continue;
     }
     if (Array.isArray(value)) {
-      params.append(key, value.join(","));
+      // An empty list means "no filter"; `key=` could be read as a value.
+      if (value.length) params.append(key, value.join(","));
     } else {
       params.append(key, String(value));
     }
@@ -54,7 +55,15 @@ export const toCSV = (results: unknown[]): string => {
       return "";
     }
 
-    const stringValue = String(value);
+    // Flat values and lists of them read naturally; nested data stays JSON.
+    const stringValue =
+      typeof value === "object" &&
+      !(
+        Array.isArray(value) &&
+        value.every((item) => typeof item !== "object" || item === null)
+      )
+        ? JSON.stringify(value)
+        : String(value);
 
     if (/[",\r\n]/.test(stringValue)) {
       return `"${stringValue.replace(/"/g, '""')}"`;
@@ -72,6 +81,10 @@ export const toCSV = (results: unknown[]): string => {
 
 const MAX_EXHAUSTIVE_FETCH_PAGES = 30;
 const EXHAUSTIVE_PAGE_SIZE = 100;
+// Each request, including reading its body, gets its own timeout. fetch_all
+// also stops starting new pages after the total budget and returns what it has.
+const PAGE_TIMEOUT_MS = 30_000;
+const EXHAUSTIVE_BUDGET_MS = 90_000;
 class ApiRequestError extends Error {}
 
 type ToolResult = {
@@ -91,49 +104,108 @@ const toStructured = (data: unknown): Record<string, unknown> =>
     ? (data as Record<string, unknown>)
     : { results: data };
 
+const statusAdvice = (status: number) =>
+  status === 401
+    ? `Reconnect your account or check your CDT Express API key (${WEBSITE_URL}).`
+    : status === 403
+      ? "Your account may not have access to this data. Check your CDT Express permissions."
+      : status === 429
+        ? "The CDT Express rate limit was reached. Wait before trying again."
+        : status >= 500
+          ? "CDT Express is temporarily unavailable. Try again later."
+          : "Check the tool inputs and try again.";
+
+const TIMEOUT_MESSAGE =
+  "CDT Express timed out after 30 seconds. Narrow your filters or request one page and try again.";
+
+const fetchPage = async (
+  url: string,
+  apiKey: string,
+  cancel?: AbortSignal,
+): Promise<unknown> => {
+  const timeout = AbortSignal.timeout(PAGE_TIMEOUT_MS);
+  const signal = cancel ? AbortSignal.any([timeout, cancel]) : timeout;
+  try {
+    const response = await fetch(url, {
+      signal,
+      redirect: "error",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "User-Agent": `cdt-express-mcp/${SERVER_VERSION} (+https://github.com/RiskThinking/cdt-express-mcp)`,
+      },
+    });
+    if (!response.ok) {
+      // Do not reflect arbitrary upstream error bodies or headers to the model.
+      await response.body?.cancel();
+      throw new ApiRequestError(
+        `CDT Express returned HTTP ${response.status}. ${statusAdvice(response.status)}`,
+      );
+    }
+    try {
+      return await response.json();
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new ApiRequestError(
+        "CDT Express returned a response that could not be read. Try again later.",
+      );
+    }
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw error;
+    if (timeout.aborted) throw new ApiRequestError(TIMEOUT_MESSAGE);
+    if (cancel?.aborted)
+      throw new ApiRequestError("The request was cancelled.");
+    throw new ApiRequestError(
+      "Could not retrieve CDT Express data. Check your connection and try again; contact support if the problem persists.",
+    );
+  }
+};
+
+const mergedResult = (
+  rows: unknown[],
+  pagesFetched: number,
+  warning?: string,
+): ToolResult => ({
+  content: [
+    ...(warning ? [{ type: "text" as const, text: warning }] : []),
+    { type: "text", text: toCSV(rows) },
+  ],
+  structuredContent: {
+    results: rows,
+    pages_fetched: pagesFetched,
+    truncated: warning !== undefined,
+  },
+});
+
 const _fetch = async (
   endpoint: string,
   params: URLSearchParams,
   apiKey: string,
-  options: { exhaustive?: boolean } = {},
+  options: { exhaustive?: boolean; signal?: AbortSignal } = {},
 ): Promise<ToolResult> => {
   const _params = new URLSearchParams(params); // clone the params for pagination cursor change
   let aggResults: unknown[] = [];
   let pagesFetched = 0;
+  const deadline = Date.now() + EXHAUSTIVE_BUDGET_MS;
 
-  // Bound the whole operation, including pagination and response-body reads.
-  const signal = AbortSignal.timeout(30_000);
   try {
     while (true) {
-      const response = await fetch(`${endpoint}?${_params}`, {
-        signal,
-        redirect: "error",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: "application/json",
-          "User-Agent": `cdt-express-mcp/${SERVER_VERSION} (+https://github.com/RiskThinking/cdt-express-mcp)`,
-        },
-      });
-
-      if (!response.ok) {
-        // Do not reflect arbitrary upstream error bodies or headers to the model.
-        await response.body?.cancel();
-        const advice =
-          response.status === 401
-            ? `Reconnect your account or check your CDT Express API key (${WEBSITE_URL}).`
-            : response.status === 403
-              ? "Your account may not have access to this data. Check your CDT Express permissions."
-              : response.status === 429
-                ? "The CDT Express rate limit was reached. Wait before trying again."
-                : response.status >= 500
-                  ? "CDT Express is temporarily unavailable. Try again later."
-                  : "Check the tool inputs and try again.";
-        throw new ApiRequestError(
-          `CDT Express returned HTTP ${response.status}. ${advice}`,
+      let data: { results?: unknown; pagination?: Record<string, unknown> };
+      try {
+        data = (await fetchPage(
+          `${endpoint}?${_params}`,
+          apiKey,
+          options.signal,
+        )) as typeof data;
+      } catch (error) {
+        // Keep the pages already merged; a late failure should not waste them.
+        if (!pagesFetched || !(error instanceof ApiRequestError)) throw error;
+        return mergedResult(
+          aggResults,
+          pagesFetched,
+          `Stopped after ${pagesFetched} pages (${aggResults.length} rows merged) because a later page failed: ${error.message} The rows below are incomplete.`,
         );
       }
-
-      const data = await response.json();
 
       if (!options.exhaustive) {
         // Compact JSON: indentation can double the tokens of large responses.
@@ -151,39 +223,29 @@ const _fetch = async (
       pagesFetched += 1;
 
       if (last_page || !cursor) {
-        break;
+        return mergedResult(aggResults, pagesFetched);
       }
       if (pagesFetched >= MAX_EXHAUSTIVE_FETCH_PAGES) {
-        const warning = `Stopped after ${MAX_EXHAUSTIVE_FETCH_PAGES} pages (${aggResults.length} rows merged). More pages exist; narrow filters or paginate with cursor.`;
-        return {
-          content: [
-            { type: "text", text: warning },
-            { type: "text", text: toCSV(aggResults) },
-          ],
-          structuredContent: {
-            results: aggResults,
-            pages_fetched: pagesFetched,
-            truncated: true,
-          },
-        };
+        return mergedResult(
+          aggResults,
+          pagesFetched,
+          `Stopped after ${MAX_EXHAUSTIVE_FETCH_PAGES} pages (${aggResults.length} rows merged). More pages exist; narrow filters or paginate with cursor.`,
+        );
       }
-      _params.set("cursor", cursor);
+      if (Date.now() >= deadline) {
+        return mergedResult(
+          aggResults,
+          pagesFetched,
+          `Stopped after ${pagesFetched} pages (${aggResults.length} rows merged) to stay within the time limit. More pages exist; narrow filters or paginate with cursor.`,
+        );
+      }
+      _params.set("cursor", String(cursor));
     }
-    return {
-      content: [{ type: "text", text: toCSV(aggResults) }],
-      structuredContent: {
-        results: aggResults,
-        pages_fetched: pagesFetched,
-        truncated: false,
-      },
-    };
   } catch (error: unknown) {
     return errorResult(
-      signal.aborted
-        ? "CDT Express timed out after 30 seconds. Narrow your filters or request one page and try again."
-        : error instanceof ApiRequestError
-          ? error.message
-          : "Could not retrieve CDT Express data. Check your connection and try again; contact support if the problem persists.",
+      error instanceof ApiRequestError
+        ? error.message
+        : "Could not process the CDT Express response. Try again or request one page; contact support if the problem persists.",
     );
   }
 };
@@ -200,7 +262,10 @@ export const getCallback = <T extends z.ZodTypeAny>(
   apiKey: string | undefined,
   options: { exhaustive?: boolean; paginated?: boolean } = {},
 ) => {
-  return async (input: unknown): Promise<ToolResult> => {
+  return async (
+    input: unknown,
+    extra?: { signal?: AbortSignal },
+  ): Promise<ToolResult> => {
     // Fail closed if a routing bug lets an anonymous request reach an API tool.
     if (!apiKey) {
       return errorResult(
@@ -238,11 +303,14 @@ export const getCallback = <T extends z.ZodTypeAny>(
         }
       }
 
-      return _fetch(finalUrl, buildParams(queryParams), apiKey, {
+      return await _fetch(finalUrl, buildParams(queryParams), apiKey, {
         exhaustive,
+        signal: extra?.signal,
       });
     } catch (error: unknown) {
-      return errorResult(error instanceof Error ? error.message : String(error));
+      return errorResult(
+        error instanceof Error ? error.message : String(error),
+      );
     }
   };
 };
