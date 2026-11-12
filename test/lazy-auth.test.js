@@ -213,6 +213,8 @@ test("an SDK client connects anonymously, then signs in on the first protected c
   assert.equal(signInUrl.pathname, "/dev/authorize");
   const page = await fetch(signInUrl);
   assert.equal(page.status, 200);
+  // Browsers send the page's origin on the form POST only under this policy.
+  assert.equal(page.headers.get("referrer-policy"), "same-origin");
   assert.match(await page.text(), /Lazy Auth Test Client/);
 
   const submit = await fetch(`${baseUrl}/dev/authorize`, {
