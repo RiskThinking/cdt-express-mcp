@@ -71,17 +71,32 @@ export const toCSV = (results: unknown[]): string => {
 };
 
 const MAX_EXHAUSTIVE_FETCH_PAGES = 30;
+const EXHAUSTIVE_PAGE_SIZE = 100;
 class ApiRequestError extends Error {}
+
+type ToolResult = {
+  content: { type: "text"; text: string }[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+};
+
+const errorResult = (text: string): ToolResult => ({
+  content: [{ type: "text", text }],
+  isError: true,
+});
+
+// structuredContent must be a JSON object; wrap anything else.
+const toStructured = (data: unknown): Record<string, unknown> =>
+  typeof data === "object" && data !== null && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : { results: data };
 
 const _fetch = async (
   endpoint: string,
   params: URLSearchParams,
   apiKey: string,
-  options: {
-    exhaustive?: boolean;
-    format?: "json" | "csv";
-  } = {},
-) => {
+  options: { exhaustive?: boolean } = {},
+): Promise<ToolResult> => {
   const _params = new URLSearchParams(params); // clone the params for pagination cursor change
   let aggResults: unknown[] = [];
   let pagesFetched = 0;
@@ -105,7 +120,7 @@ const _fetch = async (
         await response.body?.cancel();
         const advice =
           response.status === 401
-            ? "Reconnect your account or check your CDT Express API key."
+            ? `Reconnect your account or check your CDT Express API key (${WEBSITE_URL}).`
             : response.status === 403
               ? "Your account may not have access to this data. Check your CDT Express permissions."
               : response.status === 429
@@ -120,85 +135,88 @@ const _fetch = async (
 
       const data = await response.json();
 
-      if (!options?.exhaustive) {
+      if (!options.exhaustive) {
+        // Compact JSON: indentation can double the tokens of large responses.
         return {
-          content: [
-            {
-              type: "text" as const,
-              text:
-                options?.format === "csv"
-                  ? toCSV(data.results)
-                  : JSON.stringify(data, null, 2),
-            },
-          ],
+          content: [{ type: "text", text: JSON.stringify(data) }],
+          structuredContent: toStructured(data),
         };
       }
 
-      if (Array.isArray(data.results)) {
+      if (Array.isArray(data?.results)) {
         aggResults = aggResults.concat(data.results);
       }
 
-      const { cursor, last_page } = data.pagination || {};
+      const { cursor, last_page } = data?.pagination || {};
       pagesFetched += 1;
 
       if (last_page || !cursor) {
         break;
       }
       if (pagesFetched >= MAX_EXHAUSTIVE_FETCH_PAGES) {
-        const warning = `Exhaustive fetch stopped after ${MAX_EXHAUSTIVE_FETCH_PAGES} pages (${aggResults.length} rows merged). More pages exist; narrow filters or paginate manually with cursor.`;
+        const warning = `Stopped after ${MAX_EXHAUSTIVE_FETCH_PAGES} pages (${aggResults.length} rows merged). More pages exist; narrow filters or paginate with cursor.`;
         return {
           content: [
-            { type: "text" as const, text: warning },
-            { type: "text" as const, text: toCSV(aggResults) },
+            { type: "text", text: warning },
+            { type: "text", text: toCSV(aggResults) },
           ],
+          structuredContent: {
+            results: aggResults,
+            pages_fetched: pagesFetched,
+            truncated: true,
+          },
         };
       }
       _params.set("cursor", cursor);
     }
     return {
-      content: [{ type: "text" as const, text: toCSV(aggResults) }],
+      content: [{ type: "text", text: toCSV(aggResults) }],
+      structuredContent: {
+        results: aggResults,
+        pages_fetched: pagesFetched,
+        truncated: false,
+      },
     };
   } catch (error: unknown) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: signal.aborted
-            ? "CDT Express timed out after 30 seconds. Narrow your filters or use a paginated tool and try again."
-            : error instanceof ApiRequestError
-              ? error.message
-              : "Could not retrieve CDT Express data. Check your connection and try again; contact support if the problem persists.",
-        },
-      ],
-      isError: true,
-    };
+    return errorResult(
+      signal.aborted
+        ? "CDT Express timed out after 30 seconds. Narrow your filters or request one page and try again."
+        : error instanceof ApiRequestError
+          ? error.message
+          : "Could not retrieve CDT Express data. Check your connection and try again; contact support if the problem persists.",
+    );
   }
 };
 
+/**
+ * Tool handler for one API operation. `{name}` placeholders in the URL are
+ * filled (URL-encoded) from the input; other inputs become query parameters.
+ * With `exhaustive`, or when the input sets `fetch_all: true`, every page is
+ * merged into CSV; `paginated` tools then default to the largest page size.
+ */
 export const getCallback = <T extends z.ZodTypeAny>(
   schema: T,
   urlTemplate: string,
   apiKey: string | undefined,
-  options?: {
-    exhaustive?: boolean;
-    format?: "json" | "csv";
-  },
+  options: { exhaustive?: boolean; paginated?: boolean } = {},
 ) => {
-  return async (input: unknown) => {
+  return async (input: unknown): Promise<ToolResult> => {
     // Fail closed if a routing bug lets an anonymous request reach an API tool.
     if (!apiKey) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Sign in to CDT Express to use this tool. Access and API keys: ${WEBSITE_URL}`,
-          },
-        ],
-        isError: true,
-      };
+      return errorResult(
+        `Sign in to CDT Express to use this tool. Access and API keys: ${WEBSITE_URL}`,
+      );
     }
     try {
-      const validData = validateInput(schema, input) as ToolInput;
+      const { fetch_all: fetchAll, ...validData } = validateInput(
+        schema,
+        input,
+      ) as ToolInput & { fetch_all?: boolean };
+      const exhaustive = options.exhaustive || fetchAll === true;
+      // Fewer, larger pages cover more rows within the page bound.
+      if (exhaustive && options.paginated && validData.limit == null) {
+        validData.limit = EXHAUSTIVE_PAGE_SIZE;
+      }
 
       let finalUrl = urlTemplate;
       const queryParams: ToolInput = {};
@@ -211,26 +229,20 @@ export const getCallback = <T extends z.ZodTypeAny>(
         const placeholder = `{${key}}`;
 
         if (finalUrl.includes(placeholder)) {
-          // Replace the path value placeholder with the value
-          finalUrl = finalUrl.replace(placeholder, String(value));
+          finalUrl = finalUrl.replace(
+            placeholder,
+            encodeURIComponent(String(value)),
+          );
         } else {
           queryParams[QUERY_ALIASES[key] ?? key] = value;
         }
       }
 
-      const params = buildParams(queryParams);
-
-      return _fetch(finalUrl, params, apiKey, options);
+      return _fetch(finalUrl, buildParams(queryParams), apiKey, {
+        exhaustive,
+      });
     } catch (error: unknown) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: error instanceof Error ? error.message : String(error),
-          },
-        ],
-        isError: true,
-      };
+      return errorResult(error instanceof Error ? error.message : String(error));
     }
   };
 };

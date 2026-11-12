@@ -10,7 +10,8 @@ import {
   WEBSITE_URL,
 } from "./constants.js";
 import { METRIC_DEFINITIONS } from "./glossary.js";
-import { API_BASE_URL, API_TOOLS } from "./tools.js";
+import { API_OUTPUT_SCHEMA } from "./schema.js";
+import { API_BASE_URL, API_TOOLS, toolInputSchema } from "./tools.js";
 import { getCallback } from "./utils.js";
 
 // ChatGPT reads per-tool security schemes to decide which tools need sign-in.
@@ -86,22 +87,42 @@ export const getServer = (apiKey?: string) => {
     openWorldHint: true,
   };
   for (const tool of API_TOOLS) {
+    const url = `${API_BASE_URL}${tool.path}`;
+    const paginated = Boolean(tool.allPagesAlias);
+    const inputSchema = toolInputSchema(tool);
     server.registerTool(
       tool.name,
       {
         annotations: apiAnnotations,
         title: tool.title,
-        description: tool.description,
-        inputSchema: tool.input,
+        description: paginated
+          ? `${tool.description} Set fetch_all to merge every page into CSV.`
+          : tool.description,
+        inputSchema,
+        outputSchema: API_OUTPUT_SCHEMA,
         _meta: SIGNED_IN_SECURITY,
       },
-      getCallback(
-        tool.input,
-        `${API_BASE_URL}${tool.path}`,
-        apiKey,
-        tool.fetchAll ? { exhaustive: true, format: "csv" } : undefined,
-      ),
+      getCallback(inputSchema, url, apiKey, { paginated }),
     );
+
+    // Deprecated in 0.8.0, to be removed in 0.9.0: the former all-pages tools.
+    if (tool.allPagesAlias) {
+      server.registerTool(
+        tool.allPagesAlias,
+        {
+          annotations: apiAnnotations,
+          title: `${tool.title} (all pages, deprecated)`,
+          description: `Deprecated: call ${tool.name} with fetch_all: true instead. Same as that tool with every page merged into CSV.`,
+          inputSchema: tool.input,
+          outputSchema: API_OUTPUT_SCHEMA,
+          _meta: SIGNED_IN_SECURITY,
+        },
+        getCallback(tool.input, url, apiKey, {
+          exhaustive: true,
+          paginated: true,
+        }),
+      );
+    }
   }
 
   return server;

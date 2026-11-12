@@ -37,7 +37,7 @@ Conventions:
 - pathway is an emissions scenario such as ssp245 (middle of the road) or ssp585 (high emissions); horizon is a year from 2010 (baseline) to 2100.
 - Country filters use ISO 3166-1 alpha-3 codes, such as USA, CAN, or GBR.
 - Scores default to dcr_score. Request expected_impact or cvar_95 explicitly for financial damage. Call get_metrics_definition before explaining a metric.
-- Prefer paginated tools with a small limit. Use list_all_* and get_all_* tools only when the full set is needed; they can be large and consume API quota.
+- List tools return one page: pass pagination.cursor back as cursor for the next. Set fetch_all: true only when the full set is needed; it merges up to 30 pages into CSV and uses more API quota. The list_all_* and get_all_* tools are deprecated aliases for fetch_all.
 
 Results depend on the user's CDT Express access. Sign-up and API keys: ${WEBSITE_URL}`;
 
