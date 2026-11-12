@@ -39,10 +39,16 @@ jobs:
       # sync manifest.json version with package.json and package the MCPB extension
       - run: npm run pack
 
-      # upload MCPB extension to the GitHub release
+      # UTCP manual and MCP tool metadata, generated from the tool table
+      - run: npm run build:catalog
+
+      # upload MCPB extension and tool descriptions to the GitHub release
       - uses: softprops/action-gh-release@v3
         with:
-          files: cdt-express.mcpb
+          files: |
+            cdt-express.mcpb
+            utcp.json
+            tools.json
           generate_release_notes: true
           append_body: false
 

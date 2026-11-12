@@ -17,7 +17,7 @@ const validateInput = <T>(schema: z.ZodType<T>, input: unknown): T => {
 // The API takes a comma-joined singular `risk_factor`; it silently ignores the
 // plural and falls back to its default hazards. Tool schemas keep the plural
 // name so array-valued inputs read naturally.
-const QUERY_ALIASES: Record<string, string> = {
+export const QUERY_ALIASES: Record<string, string> = {
   risk_factors: "risk_factor",
 };
 

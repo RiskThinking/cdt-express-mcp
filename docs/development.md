@@ -77,3 +77,13 @@ checksum per skill; commit it with a message naming that commit. A new skill
 needs a prompt argument in `scripts/sync-prompts.mjs`. `npm test` checks that
 every tool and parameter a skill's CDT route mentions exists, so renaming a
 tool or parameter fails here before it breaks a skill.
+
+## UTCP manual and tool metadata
+
+`src/catalog.ts` generates both from the tool table in `src/tools.ts`. The
+remote server serves them at `/utcp` and `/tools.json` (with the metric
+glossary at `/glossary`), and the release workflow attaches `utcp.json` and
+`tools.json` (`npm run build:catalog`). The UTCP manual describes direct API
+calls, so it uses the API's parameter names and comma-separated lists, and
+omits `fetch_all` and the deprecated aliases. `test/utcp.test.js` runs the
+official UTCP TypeScript client against a local server and a fake API.

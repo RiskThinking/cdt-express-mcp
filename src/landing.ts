@@ -24,6 +24,7 @@ const escapeHtml = (value: string) =>
 /** Static page for people who open the MCP endpoint's origin in a browser. */
 export const renderLandingPage = (resourceUrl: URL) => {
   const endpoint = escapeHtml(resourceUrl.href);
+  const manual = escapeHtml(new URL("/utcp", resourceUrl).href);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -59,6 +60,9 @@ footer { margin-top: 2.5rem; color: var(--muted); font-size: .875rem; }
 <p>Choose <strong>Streamable HTTP</strong> if asked for a transport, then sign in with your VELO account when prompted. No API key is needed for this connection.</p>
 <h2>Get access</h2>
 <p>You need a VELO account with CDT Express access. <a href="${WEBSITE_URL}">Sign up or get your API key</a> for the local Claude Desktop extension and direct API use.</p>
+<h2>Use with UTCP</h2>
+<p>UTCP clients call the CDT Express API directly with your API key. Register this manual, and set <code>CDT_API_KEY</code> to a key from <a href="${WEBSITE_URL}">VELO</a>:</p>
+<code>${manual}</code>
 <p><a href="${REPOSITORY_URL}#readme">Setup guide and example prompts</a></p>
 <footer>
 Version ${escapeHtml(SERVER_VERSION)} · <a href="${PRIVACY_URL}">Privacy policy</a> · <a href="${REPOSITORY_URL}/issues">Report an issue</a>

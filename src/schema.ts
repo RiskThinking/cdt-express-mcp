@@ -51,7 +51,7 @@ const CLIMATE_PARAMS_SCHEMA = z.object({
     .default([METRICS[0]])
     .optional()
     .describe(
-      "Metrics to include. Note: If the user asks for financial damage or CVaR, you MUST explicitly include 'expected_impact' or 'cvar_95' in this array, otherwise it defaults to dcr_score. For definitions, refer to resource: file:///glossary/metrics.txt",
+      "Metrics to include. Note: If the user asks for financial damage or CVaR, you MUST explicitly include 'expected_impact' or 'cvar_95' in this array, otherwise it defaults to dcr_score. For definitions, call get_metrics_definition.",
     ),
 });
 
