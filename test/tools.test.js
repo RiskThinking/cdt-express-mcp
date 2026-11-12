@@ -295,3 +295,50 @@ test("path parameters are URL-encoded", async (t) => {
   )({ id: "../companies?x=1" });
   assert.equal(urls[0].pathname, "/v3/assets/..%2Fcompanies%3Fx%3D1");
 });
+
+test("crc-docs skills are offered as prompts", async (t) => {
+  const { SKILL_PROMPTS } = await import("../build/prompts.generated.js");
+  const client = await connect(t);
+  const { prompts } = await client.listPrompts();
+  assert.deepEqual(
+    prompts.map((prompt) => prompt.name).sort(),
+    SKILL_PROMPTS.map((prompt) => prompt.name).sort(),
+  );
+  assert.equal(prompts.length, 5);
+  const company = await client.getPrompt({
+    name: "how-exposed-is-this-company",
+    arguments: { company: "Walmart" },
+  });
+  const text = company.messages[0].content.text;
+  assert.match(text, /^How exposed is this company\? Company: Walmart/);
+  assert.match(text, /use Route 1 \(CDT\)/);
+  assert.match(text, /### Route 1: CDT/);
+  assert.match(text, /source="https:\/\/github\.com\/RiskThinking\/crc-docs\/blob\/[0-9a-f]{40}\//);
+  const empty = await client.getPrompt({ name: "how-hot-will-it-get" });
+  assert.match(empty.messages[0].content.text, /Place: \(ask me\)/);
+});
+
+test("crc-docs CDT routes only name tools and parameters that exist", async (t) => {
+  const { SKILL_PROMPTS } = await import("../build/prompts.generated.js");
+  const client = await connect(t);
+  const { tools } = await client.listTools();
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+  for (const prompt of SKILL_PROMPTS) {
+    const route = prompt.skill.match(/### Route 1[\s\S]*?(?=\n### )/)?.[0];
+    assert.ok(route, `${prompt.name} has a CDT route`);
+    const named = [...route.matchAll(/`((?:get|list|search)_[a-z_]+)`/g)].map(
+      (match) => match[1],
+    );
+    assert.ok(named.length > 0, `${prompt.name} names CDT tools`);
+    const properties = new Set();
+    for (const name of named) {
+      assert.ok(byName.has(name), `${prompt.name} names unknown tool ${name}`);
+      for (const key of Object.keys(byName.get(name).inputSchema.properties)) {
+        properties.add(key);
+      }
+    }
+    for (const [, key] of route.matchAll(/`([a-z_]+): /g)) {
+      assert.ok(properties.has(key), `${prompt.name} uses unknown parameter ${key}`);
+    }
+  }
+});

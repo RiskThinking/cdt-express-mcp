@@ -16,7 +16,8 @@
     "pack": "npm run build:mcpb",
     "sync:version": "node scripts/sync-version.mjs",
     "test": "npm run check:version && npm run build && node --test test/*.test.js",
-    "version": "npm run sync:version"
+    "version": "npm run sync:version",
+    "sync:prompts": "node scripts/sync-prompts.mjs"
   },
   "keywords": [
     "mcp",

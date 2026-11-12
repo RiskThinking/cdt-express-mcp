@@ -161,6 +161,14 @@ test("anonymous discovery serves public requests and challenges the rest", async
     assert.equal(tool._meta.securitySchemes[0].type, expected, tool.name);
   }
 
+  const prompts = await rpc(resourceUrl, {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "prompts/list",
+  });
+  assert.equal(prompts.status, 200);
+  assert.equal((await prompts.json()).result.prompts.length, 5);
+
   const glossary = await rpc(resourceUrl, call("get_metrics_definition"));
   assert.equal(glossary.status, 200);
   assert.match(
