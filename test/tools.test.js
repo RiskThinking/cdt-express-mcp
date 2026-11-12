@@ -114,3 +114,43 @@ test("malformed upstream JSON cannot leak a response snippet", async (t) => {
   assert.equal(result.isError, true);
   assert.doesNotMatch(result.content[0].text, /secret-api-key/);
 });
+
+test("initialize advertises identity and agent instructions aligned with server.json", async (t) => {
+  const { readFile } = await import("node:fs/promises");
+  const constants = await import("../build/constants.js");
+  const serverJson = JSON.parse(await readFile("server.json", "utf8"));
+  const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
+
+  const server = getServer("test-key");
+  const client = new Client({ name: "identity-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const info = client.getServerVersion();
+  assert.equal(info.title, serverJson.title);
+  assert.equal(info.websiteUrl, serverJson.websiteUrl);
+  assert.deepEqual(info.icons, serverJson.icons);
+  assert.equal(manifest.homepage, serverJson.websiteUrl);
+  assert.ok(serverJson.description.length <= 100);
+  for (const icon of serverJson.icons) {
+    assert.match(icon.src, /^https:\/\//);
+    assert.ok(icon.src.length <= 255);
+  }
+
+  const instructions = client.getInstructions();
+  assert.equal(instructions, constants.SERVER_INSTRUCTIONS);
+  assert.ok(instructions.includes(serverJson.websiteUrl));
+  // Every tool the instructions name must exist.
+  const { tools } = await client.listTools();
+  const names = new Set(tools.map((tool) => tool.name));
+  for (const [name] of instructions.matchAll(/\b(?:get|list|search)_[a-z_]+\b/g)) {
+    if (name.endsWith("_")) continue; // list_all_* / get_all_* wildcards
+    assert.ok(names.has(name), `instructions mention unknown tool ${name}`);
+  }
+});

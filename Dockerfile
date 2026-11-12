@@ -11,6 +11,7 @@ WORKDIR /app
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
+COPY public ./public
 USER node
 EXPOSE 3000
 CMD ["node", "build/http.js"]

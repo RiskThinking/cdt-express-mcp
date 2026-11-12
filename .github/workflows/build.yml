@@ -36,7 +36,7 @@ jobs:
       - name: Verify lean MCPB contents
         run: |
           unzip -Z1 cdt-express.mcpb | sort > mcpb-files.txt
-          diff -u <(printf '%s\n' LICENSE build/index.mjs manifest.json) mcpb-files.txt
+          diff -u <(printf '%s\n' LICENSE build/index.mjs icon.png manifest.json) mcpb-files.txt
           test "$(stat -c%s cdt-express.mcpb)" -lt 1000000
 
       # Prove both entry points complete an MCP handshake and list tools.

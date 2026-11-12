@@ -32,6 +32,10 @@ try {
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
   await copyFile(join(root, "LICENSE"), join(stagingDirectory, "LICENSE"));
+  await copyFile(
+    join(root, "public/icon-512.png"),
+    join(stagingDirectory, manifest.icon),
+  );
 
   // Bundle only the stdio entry point and the modules it can reach. This keeps
   // the HTTP transport, OAuth implementation, Express, and ipaddr.js out of the

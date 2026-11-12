@@ -1,7 +1,7 @@
 {
   "name": "@riskthinking.ai/cdt-express-mcp",
-  "version": "0.7.0",
-  "description": "Interact with climate metrics via Riskthinking.AI's CDT Express API in supported AI chat experiences",
+  "version": "0.8.0",
+  "description": "Physical climate risk metrics for locations, assets, companies, and market indexes from CDT Express",
   "type": "module",
   "main": "index.js",
   "mcpName": "io.github.RiskThinking/cdt-express-mcp",
@@ -27,7 +27,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/riskthinking-ai/cdt-express-mcp"
+    "url": "https://github.com/RiskThinking/cdt-express-mcp"
   },
   "author": {
     "name": "Riskthinking.AI",
@@ -50,5 +50,6 @@
   },
   "overrides": {
     "tmp": "^0.2.6"
-  }
+  },
+  "homepage": "https://velo.riskthinking.ai/cdt-express"
 }

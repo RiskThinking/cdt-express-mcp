@@ -1,5 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { METRICS, SERVER_VERSION } from "./constants.js";
+import {
+  ICONS,
+  METRICS,
+  SERVER_DESCRIPTION,
+  SERVER_INSTRUCTIONS,
+  SERVER_TITLE,
+  SERVER_VERSION,
+  WEBSITE_URL,
+} from "./constants.js";
 import { METRIC_DEFINITIONS } from "./glossary.js";
 import {
   ASSET_ID_SCHEMA,
@@ -30,10 +38,17 @@ import {
 import { getCallback } from "./utils.js";
 
 export const getServer = (apiKey: string) => {
-  const server = new McpServer({
-    name: "CDT Express MCP Server",
-    version: SERVER_VERSION,
-  });
+  const server = new McpServer(
+    {
+      name: "CDT Express MCP Server",
+      title: SERVER_TITLE,
+      version: SERVER_VERSION,
+      description: SERVER_DESCRIPTION,
+      websiteUrl: WEBSITE_URL,
+      icons: ICONS,
+    },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
 
   // Glossary resource (passive) and tool (active)
   server.registerResource(
